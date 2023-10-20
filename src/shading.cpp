@@ -131,7 +131,7 @@ glm::vec3 computeBlinnPhongModel(RenderState& state, const glm::vec3& cameraDire
 
     glm::vec3 unormal = glm::normalize(hitInfo.normal);
     glm::vec3 viewDir = glm::normalize(cameraDirection);
-    glm::vec3 lightDir = glm::normalize(lightDir);
+    glm::vec3 lightDir = glm::normalize(lightDirection);
     glm::vec3 H = glm::normalize(viewDir + lightDir);
 
     float cosSpec = glm::dot(unormal, H);
