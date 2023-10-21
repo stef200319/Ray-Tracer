@@ -325,6 +325,20 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
 {
     Node node;
     // TODO fill in the leaf's data; refer to `bvh_interface.h` for details
+    //get the vector of vertices from the current mesh
+    //assumes that all of our primitives are from the same mesh
+    const auto& mesh_vertices = scene.meshes[primitives[0].meshID].vertices;
+
+    auto it = std::find(mesh_vertices.begin(), mesh_vertices.end(), primitives[0]);
+    int index = -1;
+    if (it != mesh_vertices.end()) {
+        index = std::distance(mesh_vertices.begin(), it);
+    }
+
+    node.data[0] = 1u << 31; // leaf bit
+    node.data[0] += index;  // index value in the rest of the bits
+    node.data[1] = primitives.size();
+    node.aabb = aabb;
 
     // Copy the current set of primitives to the back of the primitives vector
     std::copy(primitives.begin(), primitives.end(), std::back_inserter(m_primitives));
