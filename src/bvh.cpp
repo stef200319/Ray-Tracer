@@ -191,6 +191,25 @@ uint32_t computeAABBLongestAxis(const AxisAlignedBox& aabb)
     return 2;
 }
 
+
+int closerToLowerAABB(std::tuple<float, int> distance1, std::tuple<float, int> distance2)
+{
+    return std::get<0>(distance1) < std::get<0>(distance2);
+    /*if (std::get<0>(distance1) < std::get<0>(distance2))
+        return -1;
+    if (std::get<0>(distance1) > std::get<0>(distance2))
+        return 1;
+    return 0;*/
+}
+
+void swapPrimitives(std::span<BVHInterface::Primitive> primitives, size_t index1, size_t index2)
+{
+    BVH::Primitive temp = primitives[index1];
+    primitives[index1] = primitives[index2];
+    primitives[index2] = primitives[index1];
+}
+
+
 // TODO: Standard feature
 // Given a range of BVH triangles, sort these along a specified axis based on their geometric centroid.
 // Then, find and return the split index in the range, such that the subrange containing the first element 
@@ -207,7 +226,6 @@ uint32_t computeAABBLongestAxis(const AxisAlignedBox& aabb)
 //split the list so that the size is almost half ( case 1: even - split exactly in half, case 2: odd - 2 possibilities)
 //i think at least as big as the other still refers to length, if so => case 2: first part takes the extra element
 //use the AABB to make a simpler solution
-
 size_t splitPrimitivesByMedian(const AxisAlignedBox& aabb, uint32_t axis, std::span<BVHInterface::Primitive> primitives)
 {
     using Primitive = BVHInterface::Primitive;
@@ -232,22 +250,6 @@ size_t splitPrimitivesByMedian(const AxisAlignedBox& aabb, uint32_t axis, std::s
     if (triangle_count % 2)
         return triangle_count / 2 + 1; //not sure if this returns the right index 
     return triangle_count / 2;
-}
-
-int closerToLowerAABB(std::tuple<float, int> distance1, std::tuple<float, int> distance2)
-{
-    return std::get<0>(distance1) < std::get<0>(distance2);
-    /*if (std::get<0>(distance1) < std::get<0>(distance2))
-        return -1;
-    if (std::get<0>(distance1) > std::get<0>(distance2))
-        return 1;
-    return 0;*/
-}
-
-void swapPrimitives(std::span<BVHInterface::Primitive> primitives, size_t index1, size_t index2) {
-    BVH::Primitive temp = primitives[index1];
-    primitives[index1] = primitives[index2];
-    primitives[index2] = primitives[index1];
 }
 
 // TODO: Standard feature
@@ -475,14 +477,17 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
 // You are free to modify this function's signature, as long as the constructor builds a BVH
 void BVH::buildNumLevels()
 {
-    m_numLevels = 1;
+    m_numLevels = glm::floor(glm::log2(m_nodes.size() + 1));
 }
 
 // Compute the nr. of leaves in your hierarchy after construction; useful for `debugDrawLeaf()`
 // You are free to modify this function's signature, as long as the constructor builds a BVH
 void BVH::buildNumLeaves()
 {
-    m_numLeaves = 1;
+    if (glm::floor(glm::log2(m_nodes.size() + 1)) == glm::log2(m_nodes.size() + 1))
+        m_numLeaves = 0;
+
+    m_numLeaves = m_nodes.size() - glm::pow(2, m_numLevels - 1) + 1;
 }
 
 // Draw the bounding boxes of the nodes at the selected level. Use this function to visualize nodes
