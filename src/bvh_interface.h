@@ -35,8 +35,10 @@ struct BVHInterface {
         // Node data; the first integer's most significant bit is used as a flag
         // to determine the node's purpose as a leaf or node.
         // In short, the layout is as follows:
-        // - node: [[0, index of left child], [index of right child]]
-        // - leaf: [[1, offset to primitive], [count of primitives]]
+        // 
+        // 
+        // - node: [[0, index of left child], [index of right child]] - 31 bits for left node, 32 for right node
+        // - leaf: [[1, offset to primitive], [count of primitives]] - 31 bits the distance to the primitive from one of the corners?, 32 how many primitives are inside of the bounding box
         std::array<uint32_t, 2> data;
 
         // Return if the node is a leaf node

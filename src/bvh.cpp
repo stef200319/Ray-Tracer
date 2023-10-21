@@ -108,8 +108,19 @@ uint32_t BVH::nextNodeIdx()
 // - return;    an axis-aligned bounding box around the triangle
 // This method is unit-tested, so do not change the function signature.
 AxisAlignedBox computePrimitiveAABB(const BVHInterface::Primitive primitive)
-{
-    return { .lower = glm::vec3(0), .upper = glm::vec3(0) };
+{   
+    float x_min = glm::min(glm::min(primitive.v0.position[0], primitive.v1.position[0]), primitive.v2.position[0]);
+    float y_min = glm::min(glm::min(primitive.v0.position[1], primitive.v1.position[1]), primitive.v2.position[1]);
+    float z_min = glm::min(glm::min(primitive.v0.position[2], primitive.v1.position[2]), primitive.v2.position[2]);
+    glm::vec3 lower { x_min, y_min, z_min };
+
+    float x_max = glm::max(glm::max(primitive.v0.position[0], primitive.v1.position[0]), primitive.v2.position[0]);
+    float y_max = glm::max(glm::max(primitive.v0.position[1], primitive.v1.position[1]), primitive.v2.position[1]);
+    float z_max = glm::max(glm::max(primitive.v0.position[2], primitive.v1.position[2]), primitive.v2.position[2]);
+
+    glm::vec3 upper {x_max, y_max, z_max};
+
+    return { .lower = lower, .upper = upper };
 }
 
 // TODO: Standard feature
@@ -119,7 +130,31 @@ AxisAlignedBox computePrimitiveAABB(const BVHInterface::Primitive primitive)
 // This method is unit-tested, so do not change the function signature.
 AxisAlignedBox computeSpanAABB(std::span<const BVHInterface::Primitive> primitives)
 {
-    return { .lower = glm::vec3(0), .upper = glm::vec3(0) };
+    float global_x_min = -FLT_MAX, global_y_min = -FLT_MAX, global_z_min = -FLT_MAX;
+    float global_x_max = FLT_MAX, global_y_max = FLT_MAX, global_z_max = FLT_MAX;
+
+    for (const auto& primitive : primitives) {
+        float x_min = glm::min(glm::min(primitive.v0.position[0], primitive.v1.position[0]), primitive.v2.position[0]);
+        float y_min = glm::min(glm::min(primitive.v0.position[1], primitive.v1.position[1]), primitive.v2.position[1]);
+        float z_min = glm::min(glm::min(primitive.v0.position[2], primitive.v1.position[2]), primitive.v2.position[2]);
+
+        float x_max = glm::max(glm::max(primitive.v0.position[0], primitive.v1.position[0]), primitive.v2.position[0]);
+        float y_max = glm::max(glm::max(primitive.v0.position[1], primitive.v1.position[1]), primitive.v2.position[1]);
+        float z_max = glm::max(glm::max(primitive.v0.position[2], primitive.v1.position[2]), primitive.v2.position[2]);
+
+        global_x_min = glm::min(global_x_min, x_min);
+        global_y_min = glm::min(global_y_min, y_min);
+        global_z_min = glm::min(global_z_min, z_min);
+
+        global_x_max = glm::max(global_x_max, x_max);
+        global_y_max = glm::max(global_y_max, y_max);
+        global_z_max = glm::max(global_z_max, z_max);
+    }
+
+    glm::vec3 lower { global_x_min, global_y_min, global_z_min };
+    glm::vec3 upper { global_x_max, global_y_max, global_z_max };
+
+    return { .lower = lower, .upper = upper };
 }
 
 // TODO: Standard feature
@@ -128,8 +163,12 @@ AxisAlignedBox computeSpanAABB(std::span<const BVHInterface::Primitive> primitiv
 // - return;    the geometric centroid of the triangle's vertices
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 computePrimitiveCentroid(const BVHInterface::Primitive primitive)
-{
-    return glm::vec3(0);
+{   
+    float x_center = 1 / 3 * (primitive.v0.position[0] + primitive.v1.position[0] + primitive.v2.position[0]);
+    float y_center = 1 / 3 * (primitive.v0.position[1] + primitive.v1.position[1] + primitive.v2.position[1]);
+    float z_center = 1 / 3 * (primitive.v0.position[2] + primitive.v1.position[2] + primitive.v2.position[2]);
+
+    return glm::vec3 {x_center, y_center, z_center};
 }
 
 // TODO: Standard feature
@@ -140,7 +179,15 @@ glm::vec3 computePrimitiveCentroid(const BVHInterface::Primitive primitive)
 // This method is unit-tested, so do not change the function signature.
 uint32_t computeAABBLongestAxis(const AxisAlignedBox& aabb)
 {
-    return 0;
+    float x_distance = aabb.upper[0] - aabb.lower[0];
+    float y_distance = aabb.upper[1] - aabb.lower[1];
+    float z_distance = aabb.upper[2] - aabb.lower[2];
+    
+    if (x_distance >= y_distance && x_distance >= z_distance)
+        return 0;
+    if (y_distance >= z_distance)
+        return 1;
+    return 2;
 }
 
 // TODO: Standard feature
@@ -153,11 +200,53 @@ uint32_t computeAABBLongestAxis(const AxisAlignedBox& aabb)
 // - primitives; the modifiable range of triangles that requires sorting/splitting along an axis
 // - return;     the split position of the modified range of triangles
 // This method is unit-tested, so do not change the function signature.
+// sort the triangles based on their centroid, on the axis that is specified
+// 
+// 
+//split the list so that the size is almost half ( case 1: even - split exactly in half, case 2: odd - 2 possibilities)
+//i think at least as big as the other still refers to length, if so => case 2: first part takes the extra element
+//use the AABB to make a simpler solution
+
 size_t splitPrimitivesByMedian(const AxisAlignedBox& aabb, uint32_t axis, std::span<BVHInterface::Primitive> primitives)
 {
     using Primitive = BVHInterface::Primitive;
+    int triangle_count = primitives.size();
 
-    return 0; // This is clearly not the solution
+    std::vector<std::tuple<float, int>> distances;
+    distances.reserve(triangle_count);
+
+    //const auto& primitive : primitives
+    for (int i = 0; i < triangle_count; i++ ) {
+        const auto centroid = computePrimitiveCentroid(primitives[i]);
+        float distance = centroid[axis] - aabb.lower[axis];
+        distances[i] = std::make_tuple(distance, i);
+    }
+
+    std::sort(distances.begin(), distances.end(), closerToLowerAABB);
+
+    for (int i = 0; i < triangle_count / 2; i++) {
+        swapPrimitives(primitives, std::get<1>(distances[i]), i);
+    }
+
+    if (triangle_count % 2)
+        return triangle_count / 2 + 1; //not sure if this returns the right index 
+    return triangle_count / 2;
+}
+
+int closerToLowerAABB(std::tuple<float, int> distance1, std::tuple<float, int> distance2)
+{
+    return std::get<0>(distance1) < std::get<0>(distance2);
+    /*if (std::get<0>(distance1) < std::get<0>(distance2))
+        return -1;
+    if (std::get<0>(distance1) > std::get<0>(distance2))
+        return 1;
+    return 0;*/
+}
+
+void swapPrimitives(std::span<BVHInterface::Primitive> primitives, size_t index1, size_t index2) {
+    BVH::Primitive temp = primitives[index1];
+    primitives[index1] = primitives[index2];
+    primitives[index2] = primitives[index1];
 }
 
 // TODO: Standard feature
