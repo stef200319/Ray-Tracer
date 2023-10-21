@@ -11,6 +11,7 @@
 #include <chrono>
 #include <framework/opengl_includes.h>
 #include <iostream>
+#include <stack>
 
 
 // Helper method to fill in hitInfo object. This can be safely ignored (or extended).
@@ -274,6 +275,8 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
     std::span<const BVHInterface::Node> nodes = bvh.nodes();
     std::span<const BVHInterface::Primitive> primitives = bvh.primitives();
 
+    using Node = BVHInterface::Node;
+    using Primitive = BVHInterface::Primitive;
     // Return value
     bool is_hit = false;
 
@@ -294,6 +297,45 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
         //
         // Note that it is entirely possible for a ray to hit a leaf node, but not its primitives,
         // and it is likewise possible for a ray to hit both children of a node.
+        std::stack<Node> stack;
+        stack.push(nodes[0]);
+
+        do {
+            const Node curr = stack.top();
+            stack.pop();
+
+            //if we intersect with the node at the top
+            if (intersectRayWithShape(curr.aabb, ray)) {
+                // if we have a leaf node at the top
+                if (curr.isLeaf()) {
+                    int offset = curr.primitiveOffset();
+                    int count = curr.primitiveCount();
+                    int final_i = offset + count;
+
+                    for (int i = offset; i < final_i; i++) {
+                        Primitive prim = primitives[i];
+                        const auto& [v0, v1, v2] = std::tie(prim.v0, prim.v1, prim.v2);
+                        if (intersectRayWithTriangle(v0.position, v1.position, v2.position, ray, hitInfo)) {
+                            updateHitInfo(state, prim, ray, hitInfo);
+                            is_hit = true;
+                        }
+                    }
+                }
+
+                // if we have a data node
+                else {
+                    const Node& left = nodes[curr.leftChild()];
+                    const Node& right = nodes[curr.rightChild()];
+
+                    if (intersectRayWithShape(left.aabb, ray))
+                        stack.push(left);
+                    if (intersectRayWithShape(right.aabb, ray))
+                        stack.push(right);
+                }
+            }
+                
+        } while (! stack.empty());
+        
     } else {
         // Naive implementation; simply iterates over all primitives
         for (const auto& prim : primitives) {
@@ -359,6 +401,10 @@ BVH::Node BVH::buildNodeData(const Scene& scene, const Features& features, const
 {
     Node node;
     // TODO fill in the node's data; refer to `bvh_interface.h` for details
+    node.data[0] = leftChildIndex;
+    node.data[1] = rightChildIndex;
+    node.aabb = aabb;
+
     return node;
 }
 
