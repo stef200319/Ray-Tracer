@@ -369,7 +369,8 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
     // TODO fill in the leaf's data; refer to `bvh_interface.h` for details
     //get the vector of vertices from the current mesh
     //assumes that all of our primitives are from the same mesh
-    const auto& mesh_vertices = scene.meshes[primitives[0].meshID].vertices;
+    if (features.enableAccelStructure) {
+         const auto& mesh_vertices = scene.meshes[primitives[0].meshID].vertices;
 
     auto it = std::find(mesh_vertices.begin(), mesh_vertices.end(), primitives[0]);
     int index = -1;
@@ -381,6 +382,8 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
     node.data[0] += index;  // index value in the rest of the bits
     node.data[1] = primitives.size();
     node.aabb = aabb;
+    }
+   
 
     // Copy the current set of primitives to the back of the primitives vector
     std::copy(primitives.begin(), primitives.end(), std::back_inserter(m_primitives));
@@ -449,7 +452,22 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
     //        (hint; use `std::span::subspan()` to split into left/right ranges)
 
     // Just configure the current node as a giant leaf for now
-    m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
+    //m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
+
+    if (primitives.size() <= BVH::LeafSize)
+        m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
+    else {
+        int longAxis = computeAABBLongestAxis(aabb);
+        int split = splitPrimitivesByMedian(aabb, longAxis, primitives);
+
+        int leftId = nextNodeIdx();
+        int rightId = nextNodeIdx();
+
+        m_nodes[nodeIndex] = buildNodeData(scene, features, aabb, leftId, rightId);
+        buildRecursive(scene, features, primitives.subspan(0, split), leftId);
+        buildRecursive(scene, features, primitives.subspan(split, primitives.size()), rightId);
+    }
+    
 }
 
 // TODO: Standard feature, or part of it
