@@ -86,7 +86,8 @@ Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 Ray generatePassthroughRay(Ray ray, HitInfo hitInfo)
 {
     // TODO: generate a passthrough ray
-    return Ray {};
+    glm::vec3 newOrigin = ray.origin + ray.direction * (ray.t + FLT_EPSILON);
+    return Ray(newOrigin, ray.direction);
 }
 
 // TODO: standard feature
@@ -120,5 +121,6 @@ void renderRayTransparentComponent(RenderState& state, Ray ray, const HitInfo& h
 {
     // TODO; you should first implement generatePassthroughRay()
     Ray r = generatePassthroughRay(ray, hitInfo);
-    // ...
+    float alpha = hitInfo.material.transparency;
+    hitColor = hitColor * alpha + (1 - alpha) * renderRay(state, r, rayDepth + 1);
 }
