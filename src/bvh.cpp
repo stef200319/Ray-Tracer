@@ -140,8 +140,8 @@ AxisAlignedBox computePrimitiveAABB(const BVHInterface::Primitive primitive)
 // This method is unit-tested, so do not change the function signature.
 AxisAlignedBox computeSpanAABB(std::span<const BVHInterface::Primitive> primitives)
 {
-    float global_x_min = -FLT_MAX, global_y_min = -FLT_MAX, global_z_min = -FLT_MAX;
-    float global_x_max = FLT_MAX, global_y_max = FLT_MAX, global_z_max = FLT_MAX;
+    float global_x_min = FLT_MAX, global_y_min = FLT_MAX, global_z_min = FLT_MAX;
+    float global_x_max = -FLT_MAX, global_y_max = -FLT_MAX, global_z_max = -FLT_MAX;
 
     for (const auto& primitive : primitives) {
         float x_min = glm::min(glm::min(primitive.v0.position[0], primitive.v1.position[0]), primitive.v2.position[0]);
@@ -312,13 +312,13 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
             const Node curr = stack.top();
             stack.pop();
 
-            std::cout << curr.isLeaf() << curr.primitiveOffset() << " " << curr.primitiveCount() << std::endl;
-
+            //std::cout << curr.isLeaf() << " " << curr.primitiveOffset() << " " << curr.primitiveCount() << std::endl;
+            //std::cout << glm::to_string(curr.aabb.lower) << glm::to_string(curr.aabb.upper) << std::endl;
             // if we intersect with the node at the top
             if (intersectRayWithShape(curr.aabb, ray)) {
                 // if we have a leaf node at the top
                 if (curr.isLeaf()) {
-                    std::cout << "got to the hitInfo loop";
+                    //std::cout << "hit " << std::endl;
                     int offset = curr.primitiveOffset();
                     int count = curr.primitiveCount();
                     int final_i = offset + count;
@@ -396,9 +396,11 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
         ////} else
         //   //std::cout << "2 possible poops above";
 
-        //node.data[0] = 1u << 31; // leaf bit
+        int distance = std::distance(m_primitives.begin(), m_primitives.end());
+
+        node.data[0] = 1u << 31; // leaf bit
         //this is wrong
-        node.data[0] += uint32_t(m_primitives.size() - 1); // index value in the rest of the bits
+        node.data[0] += uint32_t(distance); // index value in the rest of the bits
         node.data[1] = uint32_t(primitives.size());
         node.aabb = aabb;
     }
@@ -474,8 +476,8 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
     // Just configure the current node as a giant leaf for now
     // m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
     if (features.enableAccelStructure) {
-        //if (primitives.size() <= BVH::LeafSize)
-        if (true)
+        if (primitives.size() <= BVH::LeafSize)
+        //if (true)
             m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
         else {
             int longAxis = computeAABBLongestAxis(aabb);
