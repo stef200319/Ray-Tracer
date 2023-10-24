@@ -20,11 +20,46 @@ DISABLE_WARNINGS_POP()
 // These tests are only to help you verify that your code is correct.
 // You don't have to hand them in; we will not consider them when grading.
 //
-
-// Add your tests here, if you want :D
+glm::vec3 randomVec3() {
+    Sampler random;
+    return { random.next_1d(), random.next_1d(), random.next_1d() };
+}
+    // Add your tests here, if you want :D
 TEST_CASE("StudentTest")
 {
+    Features features = {
+        .enableShading = true,
+        .enableAccelStructure = false, // BVH is not actually active r.n.
+        .shadingModel = ShadingModel::Lambertian
+    };
+    Scene scene = loadScenePrebuilt(SceneType::CornellBox, DATA_DIR);
+    BVH bvh(scene, features);
+    RenderState state = { .scene = scene, .features = features, .bvh = bvh, .sampler = {} };
+
     // Add your own tests here...
+    SECTION("BVH")
+    {
+        glm::vec3 normal(0.f);
+        glm::vec3 texCord(0.f);
+        SECTION("Unit Tests") {
+
+            SECTION("computePrimitiveAABB") {
+                BVH::Primitive primitive {
+                    0,
+                    { { 0, 0, 0 }, normal, texCord },
+                    { { 0, 0, 1 }, normal, texCord },
+                    { { 0, 1, 0 }, normal, texCord }
+                };
+
+                AxisAlignedBox aabb = computePrimitiveAABB(primitive);
+                //CHECK(aabb.lower == { 0.f, 0.f, 0.f });
+                //CHECK(aabb.upper == { 0.f, 0.f, 0.f });
+            }
+
+
+        }
+        
+    }
 }
 
 // The below tests are not "good" unit tests. They don't actually test correctness.
