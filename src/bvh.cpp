@@ -387,6 +387,10 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
                     int offset = curr.primitiveOffset();
                     int count = curr.primitiveCount();
                     int final_i = offset + count;
+                    //if (o)
+                    if (offset < 0 || offset > primitives.size() || final_i < 0 || final_i > primitives.size())
+                        std::cout << "fuck";
+                        //bvh.buildRecursive();
 
                     for (int i = offset; i < final_i; i++) {
                         Primitive prim = primitives[i];
@@ -448,7 +452,7 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
     Node node;
     // TODO fill in the leaf's data; refer to `bvh_interface.h` for details
 
-    if (features.enableAccelStructure) {
+    //if (features.enableAccelStructure) {
         // const auto& mesh_vertices = scene.meshes[primitives[0].meshID].vertices;
 
         /*auto it = std::find(mesh_vertices.begin(), mesh_vertices.end(), primitives[0]);
@@ -471,7 +475,7 @@ BVH::Node BVH::buildLeafData(const Scene& scene, const Features& features, const
         node.data[0] = node.data[0] | distance; // index value in the rest of the bits
         node.data[1] = uint32_t(primitives.size());
         node.aabb = computeSpanAABB(primitives);
-    }
+    //}
 
     // Copy the current set of primitives to the back of the primitives vector
     std::copy(primitives.begin(), primitives.end(), std::back_inserter(m_primitives));
@@ -493,11 +497,11 @@ BVH::Node BVH::buildNodeData(const Scene& scene, const Features& features, const
     dataNodeHits++;
     Node node;
     // TODO fill in the node's data; refer to `bvh_interface.h` for details
-    if (features.enableAccelStructure) {
+    //if (features.enableAccelStructure) {
         node.data[0] = uint32_t(leftChildIndex);
         node.data[1] = uint32_t(rightChildIndex);
         node.aabb = aabb;
-    }
+    //}
     return node;
 }
 
@@ -543,7 +547,7 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
 
     // Just configure the current node as a giant leaf for now
     // m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives);
-    if (features.enableAccelStructure) {
+    //if (features.enableAccelStructure) {
         if (primitives.size() <= BVH::LeafSize)
         //if (true)
             m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives, lastIndex);
@@ -569,8 +573,8 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
             buildRecursive(scene, features, leftSpan, leftId, lastIndex);
             buildRecursive(scene, features, rightSpan, rightId, lastIndex + leftSpan.size());
         }
-    } else
-        m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives, 0);
+    /*} else
+        m_nodes[nodeIndex] = buildLeafData(scene, features, aabb, primitives, 0);*/
 }
 
 // TODO: Standard feature, or part of it
