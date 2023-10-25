@@ -362,9 +362,9 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
         std::cout << "end here" << std::endl;*/
         std::stack<Node> stack;
         stack.push(nodes[0]);
-        float t = ray.t;
+        
         do {
-
+            float t = ray.t;
             const Node curr = stack.top();
             stack.pop();
             
@@ -373,8 +373,10 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
 
             //std::cout << glm::to_string(curr.aabb.lower) << glm::to_string(curr.aabb.upper) << std::endl;
             // if we intersect with the node at the top
+            //ray.t = t;
             if (intersectRayWithShape(curr.aabb, ray)) {
                 ray.t = t;
+
                /* std::cout << "n: " << glm::to_string(hitInfo.normal) << "barCoord: " << glm::to_string(hitInfo.barycentricCoord);
                 std::cout << std::endl
                           << std::endl;*/
@@ -383,13 +385,14 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
                 //std::cout << curr.isLeaf() << " " << curr.primitiveOffset() << " " << curr.primitiveCount() << std::endl;
                 // if we have a leaf node at the top
                 if (curr.isLeaf()) {
+                    //ray.t = t;
                     //std::cout << "hit " << std::endl;
                     int offset = curr.primitiveOffset();
                     int count = curr.primitiveCount();
                     int final_i = offset + count;
                     //if (o)
-                    if (offset < 0 || offset > primitives.size() || final_i < 0 || final_i > primitives.size())
-                        std::cout << "fuck";
+                    /*if (offset < 0 || offset > primitives.size() || final_i < 0 || final_i > primitives.size())
+                        std::cout << "fuck";*/
                         //bvh.buildRecursive();
 
                     for (int i = offset; i < final_i; i++) {
@@ -400,21 +403,32 @@ bool intersectRayWithBVH(RenderState& state, const BVHInterface& bvh, Ray& ray, 
                             updateHitInfo(state, prim, ray, hitInfo);
                             is_hit = true;
                         }
+                        //else
+                            //ray.t = t;
                     }
                 }
 
                 // if we have a data node
                 else {
+                    //ray.t = t;
                     //ray.t = std::numeric_limits<float>::max();
                     const Node left = nodes[curr.leftChild()];
                     const Node right = nodes[curr.rightChild()];
 
-                    //if (intersectRayWithShape(left.aabb, ray))
+                    //if (intersectRayWithShape(left.aabb, ray)) {
                         stack.push(left);
-                    //if (intersectRayWithShape(right.aabb, ray))
+                        //ray.t = t;
+                    //}
+                        
+                    //if (intersectRayWithShape(right.aabb, ray)) {
                         stack.push(right);
+                        //ray.t = t;
+                    //}
+                       
                 }
+                //ray.t = t;
             }
+            //ray.t = t;
 
         } while (!stack.empty());
 
@@ -589,7 +603,7 @@ void BVH::buildNumLevels()
             count++;
     m_numLevels = count;*/
     
-    /*using Node = BVHInterface::Node;
+    using Node = BVHInterface::Node;
     std::queue<Node> nodes;
     nodes.push(m_nodes[0]);
 
@@ -604,9 +618,9 @@ void BVH::buildNumLevels()
         }
     } while (!nodes.empty());
 
-    float levels = log2(dataCount + 1);
-    assert( abs((int) levels - levels) > 0.001 );
-    m_numLevels = (int)levels;*/
+    float levels = log2(dataCount + 1) + 1;
+    //assert( abs((int) levels - levels) > 0.001 );
+    m_numLevels = (int)levels;
 }
 
 // Compute the nr. of leaves in your hierarchy after construction; useful for `debugDrawLeaf()`
@@ -619,7 +633,7 @@ void BVH::buildNumLeaves()
         if (node.isLeaf())
             count++;
     m_numLeaves = count;*/
-    /*using Node = BVHInterface::Node;
+    using Node = BVHInterface::Node;
     std::queue<Node> nodes;
     nodes.push(m_nodes[0]);
 
@@ -635,7 +649,7 @@ void BVH::buildNumLeaves()
         }
     } while (!nodes.empty());
 
-    m_numLeaves = leafCount;*/
+    m_numLeaves = leafCount;
 }
 // Draw the bounding boxes of the nodes at the selected level. Use this function to visualize nodes
 // for debugging. You may wish to implement `buildNumLevels()` first. We suggest drawing the AABB
@@ -648,6 +662,7 @@ void BVH::debugDrawLevel(int level)
     // colors, transparencies, etc.
     //AxisAlignedBox aabb { .lower = glm::vec3(0.0f), .upper = glm::vec3(0.0f, 1.05f, 1.05f) };
     Sampler* sample = new Sampler(1);
+    Sampler* scaleSample = new Sampler(1);
 
     int firstOnLevel = pow(2, level) - 1;
     int lastOnLevel = pow(2, level + 1) - 1; // -2 in reality but use -1 bc for loop
@@ -684,7 +699,11 @@ void BVH::debugDrawLevel(int level)
         Node curr = nodes.front();
         nodes.pop();
 
-        drawAABB(curr.aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+        float rand = scaleSample->next_1d();
+        rand = 1 + (rand - floor(rand)) / 10;
+        AxisAlignedBox scaledAABB = { curr.aabb.lower * rand, curr.aabb.upper * rand };
+
+        drawAABB(scaledAABB, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
     }
 
 }
@@ -727,7 +746,7 @@ void BVH::debugDrawLeaf(int leafIndex)
         Node curr = nodes.front();
         nodes.pop();
 
-        if (counter <= leafIndex)
+        if (counter == leafIndex)
             for (int i = curr.primitiveOffset(); i < curr.primitiveOffset() + curr.primitiveCount(); i++) {
                 Primitive p = m_primitives[i];
                 drawTriangle(p.v0, p.v1, p.v2);
