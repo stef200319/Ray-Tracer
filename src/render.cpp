@@ -84,21 +84,23 @@ std::vector<Ray> generatePixelRaysMultisampled(RenderState& state, const Trackba
     // Generate numSamples camera rays uniformly distributed across the pixel. Use
     // Hint; use `state.sampler.next*d()` to generate random samples in [0, 1).
     auto numSamples = state.features.numPixelSamples;
-    int n = state.features.numPixelSamples;
-
-    int l = sqrt(n);
-    while (n % l != 0)
-        l--;
-    int t = n / l;
-
+    
     std::vector<Ray> rays;
-    for (int i = 0; i < t; i++)
+    for (int i = 0; i < numSamples; i++) {
+        glm::vec2 pos(pixel.x + state.sampler.next_1d(), pixel.y + state.sampler.next_1d());
+        pos = pos / glm::vec2(screenResolution) * 2.f - 1.f;
+        Ray r = camera.generateRay(pos);
+        rays.push_back(r);
+    }
+
+    /* for (int i = 0; i < t; i++)
         for (int j = 0; j < l; j++) {
             glm::vec2 pos(pixel.x + (i + 0.5) / t, pixel.y + (j + 0.5) /l);
             pos = pos / glm::vec2(screenResolution) * 2.f - 1.f;
             Ray r = camera.generateRay(pos);
             rays.push_back(r);
-        }
+        }*/
+
     return rays;
 }
 
