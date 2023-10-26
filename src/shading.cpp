@@ -85,7 +85,9 @@ glm::vec3 computePhongModel(RenderState& state, const glm::vec3& cameraDirection
 
     float cosDif = glm::dot(hitInfo.normal, lightDirection) / (glm::length(hitInfo.normal) * glm::length(lightDirection));
 
-    if (cosDif < 0)
+    if (state.features.enableTransparency)
+        cosDif = abs(cosDif);
+    else if (cosDif < 0)
         cosDif = 0;
 
     glm::vec3 unormal = glm::normalize(hitInfo.normal);
@@ -96,7 +98,7 @@ glm::vec3 computePhongModel(RenderState& state, const glm::vec3& cameraDirection
 
     float cosSpec = glm::dot(reflexion, ucamera);
 
-    if (cosSpec < 0 || cosDif<=0)
+    if (cosSpec < 0 || cosDif <= 0)
         cosSpec = 0;
     
     cosSpec = glm::pow(cosSpec, hitInfo.material.shininess);
@@ -126,6 +128,8 @@ glm::vec3 computeBlinnPhongModel(RenderState& state, const glm::vec3& cameraDire
 
     float cosDif = glm::dot(hitInfo.normal, lightDirection) / (glm::length(hitInfo.normal) * glm::length(lightDirection));
 
+    if (state.features.enableTransparency)
+        cosDif = abs(cosDif);
     if (cosDif < 0)
         cosDif = 0;
 
@@ -215,6 +219,9 @@ glm::vec3 LinearGradient::sample(float ti) const
 glm::vec3 computeLinearGradientModel(RenderState& state, const glm::vec3& cameraDirection, const glm::vec3& lightDirection, const glm::vec3& lightColor, const HitInfo& hitInfo, const LinearGradient& gradient)
 {
     float cos_theta = glm::dot(lightDirection, hitInfo.normal);
+
+    if (state.features.enableTransparency)
+        cos_theta = abs(cos_theta);
     //return glm::vec3(0.f);
     return gradient.sample(cos_theta) * lightColor * cos_theta;
 }
