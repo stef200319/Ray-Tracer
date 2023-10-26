@@ -24,9 +24,16 @@ DISABLE_WARNINGS_POP()
 // This method is unit-tested, so do not change the function signature.
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
 {
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    glm::vec3 start = light.endpoint0;
+    glm::vec3 end = light.endpoint1;
+
+    glm::vec3 startColor = light.color0; 
+    glm::vec3 endColor = light.color1; 
+
+    glm::vec3 direction = end - start;
+
+    position = start + sample * direction;
+    color = sample * endColor + (1 - sample) * startColor;
 }
 
 // TODO: Standard feature
