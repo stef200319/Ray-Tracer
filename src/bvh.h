@@ -56,7 +56,7 @@ struct BVH : public BVHInterface {
     bool intersect(RenderState& state, Ray& ray, HitInfo& hitInfo) const override
     {
         return intersectRayWithBVH(state, *this, ray, hitInfo);
-    }
+        }
 
 private: // Private members
     uint32_t m_numLevels;
@@ -72,14 +72,14 @@ private: // Private methods
     // Helper functions to instantiate Node objects as either parent nodes with children, or as leaf nodes
     // For a description of either method's arguments, refer to 'bounding_volume_hierarchy.cpp'
     // Note: you are free to modify these function's signatures, as long as the constructor builds a BVH
-    Node buildLeafData(const Scene& scene, const Features& features, const AxisAlignedBox& aabb, std::span<Primitive> primitives);
+    Node buildLeafData(const Scene& scene, const Features& features, const AxisAlignedBox& aabb, std::span<Primitive> primitives, uint32_t lastIndex);
     Node buildNodeData(const Scene& scene, const Features& features, const AxisAlignedBox& aabb, uint32_t leftChildIndex, uint32_t rightChildIndex);
 
     // TODO: Standard feature
     // Hierarchy construction routine; called by the BVH's constructor, you must implement this method.
     // For a description of the method's arguments, refer to 'bounding_volume_hierarchy.cpp'
     // Note: you are free to modify this function's signature, as long as the constructor builds a BVH
-    void buildRecursive(const Scene& scene, const Features& features, std::span<Primitive> primitives, uint32_t nodeIndex);
+    void buildRecursive(const Scene& scene, const Features& features, std::span<Primitive> primitives, uint32_t nodeIndex, uint32_t lastIndex);
 
 private: // Visual debug helpers
     // Compute the nr. of levels in your hierarchy after construction; useful for debugDrawLevel()
