@@ -573,7 +573,12 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
             /*for (int i = 0; i < primitives.size(); i++)
                 std::cout << computePrimitiveCentroid(primitives[i])[longAxis] - aabb.lower[longAxis] << " ";
             std::cout << "not updated  1" << std::endl;*/
-            int split = splitPrimitivesByMedian(aabb, longAxis, primitives);
+            int split = -1;
+            if (features.extra.enableBvhSahBinning)
+            split = splitPrimitivesBySAHBin(aabb, longAxis, primitives);
+            else split = splitPrimitivesByMedian(aabb, longAxis, primitives);
+            std::cout << "SAH " << features.extra.enableBvhSahBinning << " - " << split << " out of: " << primitives.size() << std::endl;
+
             //std::cout << split;
             /* for (int i = 0; i < primitives.size(); i++)
                 std::cout << computePrimitiveCentroid(primitives[i])[longAxis] - aabb.lower[longAxis] << " ";
@@ -607,20 +612,30 @@ void BVH::buildNumLevels()
     std::queue<Node> nodes;
     nodes.push(m_nodes[0]);
 
+    int levelCount = 1;
     int dataCount = 0;
+    bool dataNodeExists = false;
     do {
-        Node curr = nodes.front();
-        nodes.pop();
-        if (! curr.isLeaf()){
-            nodes.push(m_nodes[curr.leftChild()]);
-            nodes.push(m_nodes[curr.rightChild()]);
-            dataCount++;
+        dataNodeExists = false;
+        int size = nodes.size();
+        for (int i = 0; i <size; i++) {
+            Node curr = nodes.front();
+            nodes.pop();
+            if (!curr.isLeaf()) {
+                nodes.push(m_nodes[curr.leftChild()]);
+                nodes.push(m_nodes[curr.rightChild()]);
+                dataCount++;
+                dataNodeExists = true;
+            }
         }
+        if (dataNodeExists)
+            levelCount++;
     } while (!nodes.empty());
 
     float levels = log2(dataCount + 1) + 1;
     //assert( abs((int) levels - levels) > 0.001 );
-    m_numLevels = (int)levels;
+    //m_numLevels = (int)levels;
+    m_numLevels = levelCount;
 }
 
 // Compute the nr. of leaves in your hierarchy after construction; useful for `debugDrawLeaf()`
@@ -679,31 +694,49 @@ void BVH::debugDrawLevel(int level)
     }*/
     using Node = BVHInterface::Node;
     std::queue<Node> nodes;
+    std::vector<std::tuple<int, Node>> dataNodes;
     nodes.push(m_nodes[0]);
 
-    if (level == 0) {
+    /*if (level == 0) {
         drawAABB(m_nodes[0].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
         return;
-    }
+    }*/
       
     int nodeIndex = 0;
+    //level = 0;
+    int currLevel = 0;
+    bool dataNodeExists = false;
     do {
-        Node curr = nodes.front();
-        nodes.pop();
+        dataNodeExists = false;
+        int size = nodes.size();
+        for (int i = 0; i < size; i++) {
+            Node curr = nodes.front();
+            nodes.pop();
+            if (!curr.isLeaf()) {
+                nodes.push(m_nodes[curr.leftChild()]);
+                nodes.push(m_nodes[curr.rightChild()]);
+                dataNodeExists = true;
+            }
+            dataNodes.emplace_back(std::make_tuple(currLevel, curr));
+        }
+
+        if (dataNodeExists)
+            currLevel++;
         
-        nodes.push(m_nodes[curr.leftChild()]);
-        nodes.push(m_nodes[curr.rightChild()]);
-    } while (!nodes.empty() && ++nodeIndex < firstOnLevel);
+    } while (!nodes.empty());
 
-    while (!nodes.empty()) {
-        Node curr = nodes.front();
-        nodes.pop();
 
-        float rand = scaleSample->next_1d();
-        rand = 1 + (rand - floor(rand)) / 10;
-        AxisAlignedBox scaledAABB = { curr.aabb.lower * rand, curr.aabb.upper * rand };
+    for (auto data: dataNodes ){
+        //std::cout << std::get<0>(data) << " ";
+       if (std::get<0>(data) == level) {
+            Node curr = std::get<1>(data);
 
-        drawAABB(scaledAABB, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+            float rand = scaleSample->next_1d();
+            rand = 1 + (rand - floor(rand)) / 10;
+            AxisAlignedBox scaledAABB = { curr.aabb.lower * rand, curr.aabb.upper * rand };
+
+            drawAABB(scaledAABB, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+        }
     }
 
 }
@@ -723,6 +756,7 @@ void BVH::debugDrawLeaf(int leafIndex)
     using Node = BVHInterface::Node;
     using Primitive = BVHInterface::Primitive;
     std::queue<Node> nodes;
+    std::queue<Node> leaves;
     nodes.push(m_nodes[0]);
 
     int level = m_numLevels - 1;
@@ -730,7 +764,7 @@ void BVH::debugDrawLeaf(int leafIndex)
     int lastOnLevel = pow(2, level + 1) - 1; // -2 in reality but use -1 bc for loop
     
 
-    int nodeIndex = 0;
+    /*int nodeIndex = 0;
     if (!nodes.front().isLeaf()) {
         do {
             Node curr = nodes.front();
@@ -747,6 +781,34 @@ void BVH::debugDrawLeaf(int leafIndex)
         nodes.pop();
 
         if (counter == leafIndex)
+            for (int i = curr.primitiveOffset(); i < curr.primitiveOffset() + curr.primitiveCount(); i++) {
+                Primitive p = m_primitives[i];
+                drawTriangle(p.v0, p.v1, p.v2);
+            }
+        counter++;
+    }*/
+
+    int nodeIndex = 0;
+    //if (!nodes.front().isLeaf()) {
+        do {
+            Node curr = nodes.front();
+            nodes.pop();
+
+            if (curr.isLeaf())
+                leaves.push(curr);
+            else {
+                nodes.push(m_nodes[curr.leftChild()]);
+                nodes.push(m_nodes[curr.rightChild()]);
+            }
+        } while (!nodes.empty());
+    //}
+
+    int counter = 0;
+    while (!leaves.empty()) {
+        Node curr = leaves.front();
+        leaves.pop();
+
+        if (counter <= leafIndex)
             for (int i = curr.primitiveOffset(); i < curr.primitiveOffset() + curr.primitiveCount(); i++) {
                 Primitive p = m_primitives[i];
                 drawTriangle(p.v0, p.v1, p.v2);
