@@ -39,6 +39,9 @@ void renderImageWithMotionBlur(const Scene& scene, const BVHInterface& bvh, cons
 // Given a rendered image, compute and apply a bloom post-processing effect to increase bright areas.
 // This method is not unit-tested, but we do expect to find it **exactly here**, and we'd rather
 // not go on a hunting expedition for your implementation, so please keep it here!
+
+//this is so weird, it becomes 10000 times faster by not using this boxFilter method
+// i suppose cache misses, idk
 glm::vec3 boxFilter(const Screen& image, int x, int y) {
     glm::vec3 edgeColor { 0.f, 0.f, 0.f };
     int filterSize = 1;
@@ -86,16 +89,27 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
                 mask.setPixel(x, y, currPixel);
         }
     }
-
-    Screen mask2(image.resolution(), true);
-    mask2.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    int filterSize = 10;
+    Screen maskHorizontal(image.resolution(), true);
+    maskHorizontal.clear(glm::vec3 { 0.f, 0.f, 0.f });
     //box filter and scale on mask
-    for (int x = 0; x < image.resolution().x; x++) {
-        for (int y = 0; y < image.resolution().y; y++) {
+   /* for (int x = 0; x < image.resolution().x; x++) {
+        for (int y = 0; y < image.resolution().y; y++) {*/
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
             //auto currPixel = pixels[mask.indexAt(x, y)];
             //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
                 //mask2.setPixel(x, y, boxFilter(mask, x, y));
+            glm::vec3 sum { 0.f, 0.f, 0.f };
+            for (int i = -filterSize; i < filterSize + 1; ++i) {
+                int index = image.indexAt(x + i, y);
+                if (!(index < 0 || index >= pixels.size()))
+                    sum += pixels[index];
+            }
 
+            // sum *= 1.f / ((filterSize * 2 + 1) * (filterSize * 2 + 1));
+            sum /= (filterSize * 2 + 1);
+            mask2.setPixel(x, y, sum);
         }
     }
 
