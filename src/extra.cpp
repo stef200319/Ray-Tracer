@@ -4,6 +4,7 @@
 #include "recursive.h"
 #include "shading.h"
 #include <framework/trackball.h>
+#include <iostream>
 
 // TODO; Extra feature
 // Given the same input as for `renderImage()`, instead render an image with your own implementation
@@ -38,13 +39,79 @@ void renderImageWithMotionBlur(const Scene& scene, const BVHInterface& bvh, cons
 // Given a rendered image, compute and apply a bloom post-processing effect to increase bright areas.
 // This method is not unit-tested, but we do expect to find it **exactly here**, and we'd rather
 // not go on a hunting expedition for your implementation, so please keep it here!
+glm::vec3 boxFilter(const Screen& image, int x, int y) {
+    glm::vec3 edgeColor { 0.f, 0.f, 0.f };
+    int filterSize = 1;
+    auto pixels = image.pixels();
+
+    //std::cout << x << " - " << image.resolution().x << " " << y << " - " << image.resolution().y 
+    //    << " " << x * y << " out of: " << image.resolution().x * image.resolution().y << std::endl
+    //          << std::endl
+    //          << std::endl;
+    glm::vec3 sum { 0.f, 0.f, 0.f };
+    /*for (int i = -filterSize; i < filterSize + 1; ++i) {
+        for (int j = -filterSize; j < filterSize + 1; ++j) {
+            int index = image.indexAt(x + j, y + i);
+            if (! (index < 0 || index >= pixels.size()) )
+                sum += pixels[index];
+        }*/
+    for (int i = -filterSize; i < filterSize + 1; ++i){
+        int index = image.indexAt(x + i, y);
+        if (!(index < 0 || index >= pixels.size()))
+            sum += pixels[index];
+    }
+
+    //sum *= 1.f / ((filterSize * 2 + 1) * (filterSize * 2 + 1));
+    sum /= (filterSize * 2 + 1);
+    return sum;
+}
+
 void postprocessImageWithBloom(const Scene& scene, const Features& features, const Trackball& camera, Screen& image)
 {
     if (!features.extra.enableBloomEffect) {
         return;
     }
+    
+    Screen mask(image.resolution(), true);
+    mask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    glm::vec3 tresholdColor { 0.9f, 0.9f, 0.9f };
 
-    // ...
+    auto pixels = image.pixels();
+    //initialize mask
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+            auto currPixel = pixels[image.indexAt(x, y)];
+            //if ( currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y  && currPixel.z >= tresholdColor.z)
+            if (currPixel.x + currPixel.y + currPixel.z >= 0.6f)
+                mask.setPixel(x, y, currPixel);
+        }
+    }
+
+    Screen mask2(image.resolution(), true);
+    mask2.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    //box filter and scale on mask
+    for (int x = 0; x < image.resolution().x; x++) {
+        for (int y = 0; y < image.resolution().y; y++) {
+            //auto currPixel = pixels[mask.indexAt(x, y)];
+            //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
+                //mask2.setPixel(x, y, boxFilter(mask, x, y));
+
+        }
+    }
+
+    //add to original
+    auto maskP = mask2.pixels();
+    auto testMask = mask.pixels();
+     for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+            auto currPixel = pixels[image.indexAt(x, y)];
+            auto maskPixel =maskP[image.indexAt(x, y)];
+                /* if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
+                */
+            image.setPixel(x, y, testMask[image.indexAt(x, y)]);
+            //image.setPixel(x, y, currPixel + maskPixel);
+        }
+    }
 }
 
 
