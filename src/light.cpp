@@ -23,15 +23,15 @@ DISABLE_WARNINGS_POP()
 // - color;     reference return value of the color emitted by the light at the sampled position
 // This method is unit-tested, so do not change the function signature.
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
-{
+{ 
     glm::vec3 start = light.endpoint0;
     glm::vec3 end = light.endpoint1;
-
+    
     glm::vec3 startColor = light.color0; 
     glm::vec3 endColor = light.color1; 
-
+    
     glm::vec3 direction = end - start;
-
+    
     position = start + sample * direction;
     color = sample * endColor + (1 - sample) * startColor;
 }
@@ -47,9 +47,21 @@ void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec
 // This method is unit-tested, so do not change the function signature.
 void sampleParallelogramLight(const glm::vec2& sample, const ParallelogramLight& light, glm::vec3& position, glm::vec3& color)
 {
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    glm::vec3 v0 = light.v0;
+    glm::vec3 edge1 = light.edge01;
+    glm::vec3 edge2 = light.edge02;
+
+    float alpha = sample[0];
+    float beta = sample[1];
+
+    // New position is linear combination of the edge vectors
+    position = v0 + alpha * edge1 + beta * edge2;
+
+    // This is just the bilinear interpolation formula
+    color = light.color0 * (1 - alpha) * (1 - beta)
+            + light.color1 * alpha * (1 - beta)
+            + light.color2 * (1 - alpha) * beta
+            + light.color3 * alpha * beta;
 }
 
 // TODO: Standard feature
@@ -71,6 +83,45 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
     } else {
         // Shadows are enabled in the renderer
         // TODO: implement this function; currently, the light simply passes through
+        if (ray.t == std::numeric_limits<float>::max())
+            return false;
+
+        HitInfo temp = hitInfo;
+        glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+
+        // Compute the direction from the intersection point to the light source.
+        glm::vec3 toLight = lightPosition - intersectionPoint;
+
+        // Create a shadow ray from the intersection point to the light source.
+        Ray shadowRay;
+        shadowRay.origin = intersectionPoint;
+        shadowRay.direction = glm::normalize(toLight);
+
+        // Calculate the distance to the light source.
+        float distanceToLight = glm::length(toLight);
+
+        bool debug = true;
+
+        for (const auto& mesh : state.scene.meshes) {
+            const std::vector<Vertex>& vertices = mesh.vertices;
+            const std::vector<glm::uvec3>& triangles = mesh.triangles;
+
+            for (const glm::uvec3& triangle : triangles) {
+                const glm::vec3& vertex1 = vertices[triangle.x].position;
+                const glm::vec3& vertex2 = vertices[triangle.y].position;
+                const glm::vec3& vertex3 = vertices[triangle.z].position;
+
+                // Perform ray-triangle intersection test.
+                if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
+                    // If an intersection is found and it is closer than the light source, return false.
+                    if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // If no obstructions were found, the light is visible.
         return true;
     }
 }
@@ -111,11 +162,14 @@ glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 computeContributionPointLight(RenderState& state, const PointLight& light, const Ray& ray, const HitInfo& hitInfo)
 {
+    glm::vec3 color = visibilityOfLightSample(state, light.position, light.color, ray, hitInfo);
+
+
     // TODO: modify this function to incorporate visibility corerctly
     glm::vec3 p = ray.origin + ray.t * ray.direction;
     glm::vec3 l = glm::normalize(light.position - p);
     glm::vec3 v = -ray.direction;
-    return computeShading(state, v, l, light.color, hitInfo);
+    return computeShading(state, v, l, color, hitInfo);
 }
 
 // TODO: Standard feature
