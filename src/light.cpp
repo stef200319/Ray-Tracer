@@ -91,17 +91,19 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
 
         // Compute the direction from the intersection point to the light source.
         glm::vec3 toLight = lightPosition - intersectionPoint;
-
-        // Create a shadow ray from the intersection point to the light source.
-        Ray shadowRay;
-        shadowRay.origin = intersectionPoint;
-        shadowRay.direction = glm::normalize(toLight);
-
-        // Calculate the distance to the light source.
         float distanceToLight = glm::length(toLight);
 
-        bool debug = true;
+        // Create a shadow ray from the intersection point to the light source with bias
+        float bias = 0.0001f;
 
+        Ray shadowRay;
+        shadowRay.origin = intersectionPoint;
+        shadowRay.direction = toLight / distanceToLight;
+
+        // Offset the ray by the bias
+        shadowRay.origin += shadowRay.direction * bias;
+
+        // Check for intersections from shadowRay to lightsource
         for (const auto& mesh : state.scene.meshes) {
             const std::vector<Vertex>& vertices = mesh.vertices;
             const std::vector<glm::uvec3>& triangles = mesh.triangles;
@@ -111,7 +113,6 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
                 const glm::vec3& vertex2 = vertices[triangle.y].position;
                 const glm::vec3& vertex3 = vertices[triangle.z].position;
 
-                // Perform ray-triangle intersection test.
                 if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
                     // If an intersection is found and it is closer than the light source, return false.
                     if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
@@ -195,7 +196,28 @@ glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight
     // - sample the segment light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 accumulatedLight(0.0f);
+    glm::vec3 sampledPosition(0.0f);
+    glm::vec3 sampledColor(0.0f);
+    glm::vec3 color(0.0f);
+    float N = numSamples;
+
+    for (int i = 0; i < numSamples; i++) {
+
+        // Sample the segment light 
+        sampleSegmentLight(state.sampler.next_1d(), light, sampledPosition, sampledColor);
+
+        // Compute the color
+        color = visibilityOfLightSample(state, sampledPosition, sampledColor / N, ray, hitInfo);
+
+        glm::vec3 p = ray.origin + ray.t * ray.direction;
+        glm::vec3 l = glm::normalize(sampledPosition - p);
+        glm::vec3 v = -ray.direction;
+        accumulatedLight += computeShading(state, v, l, color, hitInfo);
+    }
+
+
+    return accumulatedLight;
 }
 
 // TODO: Standard feature
