@@ -144,8 +144,42 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec3& lightPosition, const glm::vec3& lightColor, const Ray& ray, const HitInfo& hitInfo)
 {
-    // TODO: implement this function; currently, the light simply passes through
-    return lightColor;
+    glm::vec3 result = lightColor;
+    glm::vec3 intersectionPoint = ray.origin + ray.t * ray.direction;
+
+    glm::vec3 toLight = lightPosition - intersectionPoint;
+
+    HitInfo temp = hitInfo;
+
+    float bias = 0.0001f;
+    Ray shadowRay;
+    shadowRay.origin = intersectionPoint;
+    shadowRay.direction = glm::normalize(toLight);
+    shadowRay.origin += bias * shadowRay.direction;
+
+    float distanceToLight = glm::length(toLight);
+
+    // Iterate over the scene objects and check for intersections with the shadow ray.
+    for (const auto& mesh : state.scene.meshes) {
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<glm::uvec3>& triangles = mesh.triangles;
+
+        for (const glm::uvec3& triangle : triangles) {
+            const glm::vec3& vertex1 = vertices[triangle.x].position;
+            const glm::vec3& vertex2 = vertices[triangle.y].position;
+            const glm::vec3& vertex3 = vertices[triangle.z].position;
+
+            // Perform ray-triangle intersection test.
+            if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
+                // If an intersection is found and it is closer than the light source, attenuate the light color.
+                float alpha = mesh.material.transparency;
+                result *= (1 - alpha);
+                break; // Stop checking other triangles for transparency.
+            }
+        }
+    }
+
+    return result;
 }
 
 // TODO: Standard feature
@@ -210,6 +244,9 @@ glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight
         // Compute the color
         color = visibilityOfLightSample(state, sampledPosition, sampledColor / N, ray, hitInfo);
 
+        if (color == glm::vec3(0.0f))
+            continue;
+
         glm::vec3 p = ray.origin + ray.t * ray.direction;
         glm::vec3 l = glm::normalize(sampledPosition - p);
         glm::vec3 v = -ray.direction;
@@ -244,7 +281,27 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
     // - sample the parallellogram light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 accumulatedLight(0.0f);
+    glm::vec3 sampledPosition(0.0f);
+    glm::vec3 sampledColor(0.0f);
+    glm::vec3 color(0.0f);
+    float N = numSamples;
+
+    for (int i = 0; i < numSamples; i++) {
+
+        // Sample the parallelogram light
+        sampleParallelogramLight(state.sampler.next_2d(), light, sampledPosition, sampledColor);
+
+        // Compute the color
+        color = visibilityOfLightSample(state, sampledPosition, sampledColor / N, ray, hitInfo);
+
+        glm::vec3 p = ray.origin + ray.t * ray.direction;
+        glm::vec3 l = glm::normalize(sampledPosition - p);
+        glm::vec3 v = -ray.direction;
+        accumulatedLight += computeShading(state, v, l, color, hitInfo);
+    }
+
+    return accumulatedLight;
 }
 
 // This function is provided as-is. You do not have to implement it.
