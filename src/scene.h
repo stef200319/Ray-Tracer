@@ -34,6 +34,8 @@ struct Scene {
     std::vector<Sphere> spheres;
     std::vector<SceneLight> lights;
 
+    Image environment = Image(DATA_DIR / std::filesystem::path("skybox_texture.jpg"));
+
     // You can add your own objects (e.g. environment maps) here
     // ...
 };
