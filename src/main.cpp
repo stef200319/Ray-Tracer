@@ -74,8 +74,10 @@ int main(int argc, char** argv)
 
         int bvhDebugLevel = 0;
         int bvhDebugLeaf = 0;
+        int bvhDebugSAH = 0;
         bool debugBVHLevel { false };
         bool debugBVHLeaf { false };
+        bool debugSAH { false };
         ViewMode viewMode { ViewMode::Rasterization };
 
         window.registerKeyCallback([&](int key, int /* scancode */, int action, int /* mods */) {
@@ -254,12 +256,19 @@ int main(int argc, char** argv)
             ImGui::Separator();
             ImGui::Text("Debugging");
             if (viewMode == ViewMode::Rasterization) {
-                ImGui::Checkbox("Draw BVH Level", &debugBVHLevel);
-                if (debugBVHLevel)
-                    ImGui::SliderInt("BVH Level", &bvhDebugLevel, 0, bvh.numLevels() - 1);
-                ImGui::Checkbox("Draw BVH Leaf", &debugBVHLeaf);
-                if (debugBVHLeaf)
-                    ImGui::SliderInt("BVH Leaf", &bvhDebugLeaf, 1, bvh.numLeaves());
+               
+                    ImGui::Checkbox("Draw SAH Level", &debugSAH);
+                    if (debugSAH)
+                        ImGui::SliderInt("SAH Level", &bvhDebugSAH, 0, bvh.numLevels() - 1);
+                    ImGui::Checkbox("Draw BVH Level", &debugBVHLevel);
+                    if (debugBVHLevel)
+                        ImGui::SliderInt("BVH Level", &bvhDebugLevel, 0, bvh.numLevels() - 1);
+                    ImGui::Checkbox("Draw BVH Leaf", &debugBVHLeaf);
+                    if (debugBVHLeaf)
+                        ImGui::SliderInt("BVH Leaf", &bvhDebugLeaf, 1, bvh.numLeaves());
+                
+                
+               
             }
 
             ImGui::Spacing();
@@ -397,7 +406,7 @@ int main(int argc, char** argv)
 
                 drawLightsOpenGL(scene, camera, selectedLightIdx);
 
-                if (debugBVHLevel || debugBVHLeaf) {
+                if (debugBVHLevel || debugBVHLeaf || debugSAH) {
                     glPushAttrib(GL_ALL_ATTRIB_BITS);
                     setOpenGLMatrices(camera);
                     glDisable(GL_LIGHTING);
@@ -409,9 +418,11 @@ int main(int argc, char** argv)
                     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                     enableDebugDraw = true;
                     if (debugBVHLevel)
-                        bvh.debugDrawLevel(bvhDebugLevel);
+                        bvh.debugSAHLevel(bvhDebugLevel);
                     if (debugBVHLeaf)
                         bvh.debugDrawLeaf(bvhDebugLeaf);
+                    if (debugSAH)
+                        bvh.debugSAHLevel(bvhDebugSAH);
                     enableDebugDraw = false;
                     glPopAttrib();
                 }

@@ -44,6 +44,17 @@ void drawExampleOfCustomVisualDebug()
     glEnd();
 }
 
+void drawSplit(const Vertex& v0, const Vertex& v1, const Vertex& v2)
+{
+    glBegin(GL_TRIANGLES);
+    glNormal3fv(glm::value_ptr(v0.normal));
+    glVertex3fv(glm::value_ptr(v0.position));
+    glNormal3fv(glm::value_ptr(v1.normal));
+    glVertex3fv(glm::value_ptr(v1.position));
+    glNormal3fv(glm::value_ptr(v2.normal));
+    glVertex3fv(glm::value_ptr(v2.position));
+    glEnd();
+}
 
 void drawTriangle (const Vertex& v0, const Vertex& v1, const Vertex& v2 ) {
     glBegin(GL_TRIANGLES);

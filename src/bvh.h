@@ -101,6 +101,8 @@ public: // Visual debug
     // You are free to modify this function's signature.
     void debugDrawLeaf(int leafIndex);
 
+    void debugSAHLevel(int level);
+
 public: // Public getters
     // Accessors to underlying data
     std::span<const Node> nodes() const override { return m_nodes; }
