@@ -40,13 +40,143 @@ void renderImageWithMotionBlur(const Scene& scene, const BVHInterface& bvh, cons
 // Given a rendered image, compute and apply a bloom post-processing effect to increase bright areas.
 // This method is not unit-tested, but we do expect to find it **exactly here**, and we'd rather
 // not go on a hunting expedition for your implementation, so please keep it here!
+
+//this is so weird, it becomes 10000 times faster by not using this boxFilter method
+// i suppose cache misses, idk
+// it was a box filter because I was using it in early testing, in the main code a binomial gradient is used
+glm::vec3 boxFilter(const Screen& image, int x, int y) {
+    glm::vec3 edgeColor { 0.f, 0.f, 0.f };
+    int filterSize = 1;
+    auto pixels = image.pixels();
+
+    //std::cout << x << " - " << image.resolution().x << " " << y << " - " << image.resolution().y 
+    //    << " " << x * y << " out of: " << image.resolution().x * image.resolution().y << std::endl
+    //          << std::endl
+    //          << std::endl;
+    glm::vec3 sum { 0.f, 0.f, 0.f };
+    /*for (int i = -filterSize; i < filterSize + 1; ++i) {
+        for (int j = -filterSize; j < filterSize + 1; ++j) {
+            int index = image.indexAt(x + j, y + i);
+            if (! (index < 0 || index >= pixels.size()) )
+                sum += pixels[index];
+        }*/
+    for (int i = -filterSize; i < filterSize + 1; ++i){
+        int index = image.indexAt(x + i, y);
+        if (!(index < 0 || index >= pixels.size()))
+            sum += pixels[index];
+    }
+
+    //sum *= 1.f / ((filterSize * 2 + 1) * (filterSize * 2 + 1));
+    sum /= (filterSize * 2 + 1);
+    return sum;
+}
+
+float choose(int n, int k) {
+    if (k == 0)
+        return 1;
+    return (n * choose(n - 1, k - 1)) / k;
+}
+
+std::vector<float> bloomFilter(int size) {
+    std::vector<float> res;
+    res.reserve(size);
+
+    for (int i = 1; i <= size; i++)
+        res.push_back(choose(size, i));
+
+    return res;
+}
+
 void postprocessImageWithBloom(const Scene& scene, const Features& features, const Trackball& camera, Screen& image)
 {
     if (!features.extra.enableBloomEffect) {
         return;
     }
+    
+    Screen brightMask(image.resolution(), true);
+    brightMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    //glm::vec3 tresholdColor { 0.7f, 0.7f, 0.7f };
+    auto pixels = image.pixels();
+    //initialize mask
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+            auto currPixel = pixels[image.indexAt(x, y)];
+            //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
+                 if (currPixel.x + currPixel.y + currPixel.z >= features.extra.bloomTreshold)
+                brightMask.setPixel(x, y, currPixel);
+            else
+                brightMask.setPixel(x, y, glm::vec3 { 0.f, 0.f, 0.f });
+        }
+    }
 
-    // ...
+    int filterSize = features.extra.bloomFilterSize;
+    auto bloom = bloomFilter(filterSize * 2 + 1);
+    float bloomDivider = 0;
+    for (auto filterV : bloom)
+        bloomDivider += filterV;
+
+    Screen horizontalMask(image.resolution(), true);
+    horizontalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    auto brightMaskP = brightMask.pixels();
+    //box filter and scale on mask
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+
+            //calling another function seems to slow it down by a lot, even tho only references are passed, maybe optimization problems?
+            /*auto currPixel = pixels[brightMask.indexAt(x, y)];
+            if (currPixel.x != 0.f && currPixel.y != 0.f && currPixel.z != 0.f)*/
+            // mask2.setPixel(x, y, boxFilter(mask, x, y));
+
+            glm::vec3 sum { 0.f, 0.f, 0.f };
+            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+                int index = brightMask.indexAt(x + i, y);
+                if (!(index < 0 || index >= pixels.size()))
+                     sum += brightMaskP[index] * bloom[j];
+                    //sum += brightMaskP[index];
+            }
+
+             //sum /= (filterSize * 2 + 1);
+            sum /= bloomDivider;
+            horizontalMask.setPixel(x, y, sum);
+        }
+    }
+
+     Screen verticalMask(image.resolution(), true);
+     verticalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+     auto horizontalMaskP = horizontalMask.pixels();
+    // box filter and scale on mask
+    /* for (int x = 0; x < image.resolution().x; x++) {
+         for (int y = 0; y < image.resolution().y; y++) {*/
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+
+            glm::vec3 sum { 0.f, 0.f, 0.f };
+            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+                int index = horizontalMask.indexAt(x, y + i);
+                if (!(index < 0 || index >= pixels.size()))
+                    //sum += horizontalMaskP[index];
+                     sum += brightMaskP[index] * bloom[j];
+            }
+
+            // sum *= 1.f / ((filterSize * 2 + 1) * (filterSize * 2 + 1));
+            //sum /= (filterSize * 2 + 1);
+            sum /= bloomDivider;
+            verticalMask.setPixel(x, y, sum);
+        }
+    }
+
+
+    //add to original
+    auto maskPixels = verticalMask.pixels();
+     for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+            auto currPixel = pixels[image.indexAt(x, y)];
+            auto maskPixel =maskPixels[image.indexAt(x, y)];
+
+            image.setPixel(x, y, currPixel + maskPixel);
+            //image.setPixel(x, y, horizontalMaskP[image.indexAt(x, y)]);
+        }
+    }
 }
 
 
