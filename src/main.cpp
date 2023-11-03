@@ -90,6 +90,12 @@ int main(int argc, char** argv)
                     auto pixel = glm::ivec2(tmp * glm::vec2(screen.resolution()));
                     debugRays = generatePixelRays(state, camera, pixel, screen.resolution());
                 } break;
+                case GLFW_KEY_D: {
+                    RenderState state = { .scene = scene, .features = config.features, .bvh = bvh, .sampler = { debugRaySeed } };
+                    auto tmp = window.getNormalizedCursorPos();
+                    auto pixel = glm::ivec2(tmp * glm::vec2(screen.resolution()));
+                    debugRays = generateRaysDepthOfField(state, camera, pixel, screen.resolution());
+                } break;
                 case GLFW_KEY_A: {
                     debugBVHLeafId++;
                 } break;
@@ -198,13 +204,17 @@ int main(int argc, char** argv)
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);
                 if (config.features.extra.enableDepthOfField) {
                     ImGui::Indent();
-                    // Add DOF settings here, if necessary
+                    
+                    ImGui::SliderFloat("Focal Length", &config.features.extra.focalLength, 0.f, 100.f);
+                    ImGui::SliderFloat("Aperture", &config.features.extra.aperture, 0.f, 0.5f);
+                    ImGui::SliderInt("Number of Ray Samples", &config.features.extra.raysDoF, 1, 20);
+
                     ImGui::Unindent();
                 }
                 ImGui::Checkbox("Motion blur", &config.features.extra.enableMotionBlur);
                 if (config.features.extra.enableMotionBlur) {
                     ImGui::Indent();
-                    // Add motion blur settings here, if necessary
+                    
                     ImGui::Unindent();
                 }
                 ImGui::Checkbox("Glossy reflections", &config.features.extra.enableGlossyReflection);

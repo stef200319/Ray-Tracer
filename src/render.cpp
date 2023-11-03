@@ -55,7 +55,7 @@ void renderImage(const Scene& scene, const BVHInterface& bvh, const Features& fe
 // This method forwards to `generatePixelRaysMultisampled` and `generatePixelRaysStratified` when necessary.
 std::vector<Ray> generatePixelRays(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution)
 {
-    if (state.features.numPixelSamples > 1) {
+     if (state.features.numPixelSamples > 1) {
         if (state.features.enableJitteredSampling) {
             return generatePixelRaysStratified(state, camera, pixel, screenResolution);
         } else {
@@ -129,5 +129,33 @@ std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball
             Ray r = camera.generateRay(pos);
             rays.push_back(r);
         }
+    return rays;
+}
+
+//Generate Rays when using depth of field (for debug)
+std::vector<Ray> generateRaysDepthOfField(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution)
+{
+
+    float focalLength = state.features.extra.focalLength;
+    float aperture = state.features.extra.aperture;
+    int n = state.features.extra.raysDoF;
+
+    auto rays = generatePixelRays(state, camera, pixel, screenResolution);
+
+    Ray initialRay = rays.at(0);
+
+    glm::vec3 intersection = initialRay.origin + initialRay.direction * focalLength;
+
+    for (int i = 1; i < n; i++) {
+        float sampleX = state.sampler.next_1d();
+        float sampleY = state.sampler.next_1d();
+
+        sampleX = sampleX * 2 * aperture - aperture;
+        sampleY = sampleY * 2 * aperture - aperture;
+        glm::vec3 offset = sampleX * camera.left() + sampleY * camera.up();
+
+        Ray newRay(initialRay.origin + offset, glm::normalize(intersection - initialRay.origin - offset));
+        rays.push_back(newRay);
+    }
     return rays;
 }
