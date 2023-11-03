@@ -6,6 +6,7 @@
 #include "render.h"
 #include "scene.h"
 #include "shading.h"
+#include "bvh.h"
 // Suppress warnings in third-party code.
 #include <framework/disable_all_warnings.h>
 DISABLE_WARNINGS_PUSH()
@@ -104,22 +105,9 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
         shadowRay.origin += shadowRay.direction * bias;
 
         // Check for intersections from shadowRay to lightsource
-        for (const auto& mesh : state.scene.meshes) {
-            const std::vector<Vertex>& vertices = mesh.vertices;
-            const std::vector<glm::uvec3>& triangles = mesh.triangles;
-
-            for (const glm::uvec3& triangle : triangles) {
-                const glm::vec3& vertex1 = vertices[triangle.x].position;
-                const glm::vec3& vertex2 = vertices[triangle.y].position;
-                const glm::vec3& vertex3 = vertices[triangle.z].position;
-
-                if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
-                    // If an intersection is found and it is closer than the light source, return false.
-                    if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
-                        return false;
-                    }
-                }
-            }
+        intersectRayWithBVH(state, state.bvh, shadowRay, temp);
+        if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
+            return false;
         }
 
         // If no obstructions were found, the light is visible.
