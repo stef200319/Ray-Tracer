@@ -193,7 +193,7 @@ int main(int argc, char** argv)
                 if (config.features.extra.enableBloomEffect) {
                     ImGui::Indent();
                     // Add bloom settings here, if necessary
-                    uint32_t minSize = 1u, maxSize = 10u;
+                    uint32_t minSize = 1u, maxSize = 1000u;
                     ImGui::SliderScalar("Bloom filter size", ImGuiDataType_U32, &config.features.extra.bloomFilterSize, &minSize, &maxSize);
 
             
