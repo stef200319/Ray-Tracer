@@ -1,8 +1,9 @@
 #include "recursive.h"
-#include "draw.h"
+#include "bvh.h"
 #include "bvh_interface.h"
-#include "intersect.h"
+#include "draw.h"
 #include "extra.h"
+#include "intersect.h"
 #include "light.h"
 
 // This function is provided as-is. You do not have to implement it.
@@ -71,9 +72,19 @@ glm::vec3 renderRay(RenderState& state, Ray ray, int rayDepth)
 // This method is unit-tested, so do not change the function signature.
 Ray generateReflectionRay(Ray ray, HitInfo hitInfo)
 {
-    // TODO: generate a mirrored ray
-    //       if you use glm::reflect, you will not get points for this method!
-    return Ray {};
+    glm::vec3 normal = hitInfo.normal;
+    glm::vec3 intersection = ray.origin + ray.direction * ray.t;
+
+    glm::vec3 reflectionDirection = ray.direction - 2.0f * glm::dot(ray.direction, normal) * normal;
+
+    Ray reflectedRay;
+    reflectedRay.origin = intersection;
+    reflectedRay.direction = glm::normalize(reflectionDirection);
+
+    // Slight offset to avoid self-intersection.
+    reflectedRay.origin += reflectedRay.direction * 0.0001f;
+
+    return reflectedRay;
 }
 
 // TODO: Standard feature
@@ -102,9 +113,21 @@ Ray generatePassthroughRay(Ray ray, HitInfo hitInfo)
 // This method is unit-tested, so do not change the function signature.
 void renderRaySpecularComponent(RenderState& state, Ray ray, const HitInfo& hitInfo, glm::vec3& hitColor, int rayDepth)
 {
-    // TODO; you should first implement generateReflectionRay()
-    Ray r = generateReflectionRay(ray, hitInfo);
-    // ...
+    // Check if the maximum recursion depth has been reached.
+    if (rayDepth >= 6)
+        return;
+
+    Ray reflectedRay = generateReflectionRay(ray, hitInfo);
+
+    HitInfo reflectedHitInfo;
+    if (!state.bvh.intersect(state, reflectedRay, reflectedHitInfo))
+        return;
+
+    // Calculate the specular contribution and add it to hitColor
+    glm::vec3 specularContribution = computeLightContribution(state, reflectedRay, reflectedHitInfo);
+    hitColor += hitInfo.material.ks * specularContribution;
+
+    renderRay(state, reflectedRay, rayDepth + 1);
 }
 
 // TODO: standard feature

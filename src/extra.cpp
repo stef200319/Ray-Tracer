@@ -4,7 +4,8 @@
 #include "recursive.h"
 #include "shading.h"
 #include <framework/trackball.h>
-#include <iostream>
+#include <texture.h>
+#include <algorithm>
 
 // TODO; Extra feature
 // Given the same input as for `renderImage()`, instead render an image with your own implementation
@@ -208,8 +209,73 @@ void renderRayGlossyComponent(RenderState& state, Ray ray, const HitInfo& hitInf
 glm::vec3 sampleEnvironmentMap(RenderState& state, Ray ray)
 {
     if (state.features.extra.enableEnvironmentMap) {
-        // Part of your implementation should go here
-        return glm::vec3(0.f);
+         //Part of your implementation should go here
+
+        float x = ray.direction.x;
+        float y = ray.direction.y;
+        float z = ray.direction.z;
+        float u;
+        float v;
+        float a = 0.3333332f;
+
+        if (x < 0 && abs(x) >= abs(y) && abs(x) >= abs(z)) {
+            u = z / abs(x) / 2 + 0.5f;
+            v = y / abs(x) / 2 + 0.5f;
+
+            //these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4;
+            v = v / 3 + 1.0f/3.0f;
+
+        } else if (x > 0 && abs(x) >= abs(y) && abs(x) >= abs(z)) {
+            u = -z / abs(x) / 2 + 0.5f;
+            v = y / abs(x) / 2 + 0.5f;
+
+            // these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4 + 0.5f;
+            v = v / 3 + 1.0f / 3.0f;
+
+        } else if (y < 0 && abs(y) >= abs(x) && abs(y) >= abs(z)) {
+            u = x / abs(y) / 2 + 0.5f;
+            v = z / abs(y) / 2 + 0.5f;
+
+            // these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4 + 0.25f;
+            v = v / 3;
+
+        } else if (y > 0 && abs(y) >= abs(x) && abs(y) >= abs(z)) {
+            u = x / abs(y) / 2 + 0.5f;
+            v = -z / abs(y) / 2 + 0.5f;
+
+            // these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4 + 0.25f;
+            v = v / 3 + 2.0f/3.0f;
+
+        } else if (z < 0 && abs(z) >= abs(x) && abs(z) >= abs(y)) {
+            u = -x / abs(z) / 2 + 0.5f;
+            v = y / abs(z) / 2 + 0.5f;
+
+            // these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4 + 0.75f;
+            v = v / 3 + 1.0f / 3.0f;
+        } else { //z>0, abs(z) is max
+            u = x / abs(z) / 2 + 0.5f;
+            v = y / abs(z) / 2 + 0.5f;
+
+            // these are coords within respective face, now we map to correct position of face within the texture
+
+            u = u / 4 + 0.25f;
+            v = v / 3 + 1.0f / 3.0f;
+        } 
+      
+
+        glm::vec2 texCoord(u, v);
+
+        return sampleTextureNearest(state.scene.environment, texCoord);
     } else {
         return glm::vec3(0.f);
     }
