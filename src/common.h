@@ -73,6 +73,10 @@ struct ExtraFeatures {
     uint32_t bloomFilterSize = 1;
     float bloomTreshold = 2.f;
 
+    //Parameters for Depth of Field
+    float focalLength = 1.f;
+    float aperture = 0.1f;
+    int raysDoF = 1;
 };
 
 struct Features {

@@ -54,3 +54,5 @@ std::vector<Ray> generatePixelRaysMultisampled(RenderState &state, const Trackba
 // This method is not unit-tested, but we do expect to find it **exactly here**, and we'd rather
 // not go on a hunting expedition for your implementation, so please keep it here!
 std::vector<Ray> generatePixelRaysStratified(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution);
+
+std::vector<Ray> generateRaysDepthOfField(RenderState& state, const Trackball& camera, glm::ivec2 pixel, glm::ivec2 screenResolution);

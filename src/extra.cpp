@@ -19,7 +19,40 @@ void renderImageWithDepthOfField(const Scene& scene, const BVHInterface& bvh, co
         return;
     }
 
-    // ...
+    float focalLength = features.extra.focalLength;
+    float aperture = features.extra.aperture;
+    int n = features.extra.raysDoF;
+
+    for (int y = 0; y < screen.resolution().y; y++) {
+        for (int x = 0; x != screen.resolution().x; x++) {
+            RenderState state = {
+                .scene = scene,
+                .features = features,
+                .bvh = bvh,
+                .sampler = { static_cast<uint32_t>(screen.resolution().y * x + y) }
+            };
+            auto rays = generatePixelRays(state, camera, { x, y }, screen.resolution());
+
+            Ray initialRay = rays.at(0);
+
+            glm::vec3 intersection = initialRay.origin + initialRay.direction * focalLength;
+
+            for (int i = 1; i < n; i++) {
+                float sampleX = state.sampler.next_1d();
+                float sampleY = state.sampler.next_1d();
+
+                sampleX = sampleX * 2 * aperture - aperture;
+                sampleY = sampleY * 2 * aperture - aperture;
+                glm::vec3 offset = sampleX * camera.left() + sampleY * camera.up();
+
+                Ray newRay(initialRay.origin + offset, glm::normalize(intersection - initialRay.origin - offset));
+                rays.push_back(newRay);
+            }
+            
+            auto L = renderRays(state, rays);
+            screen.setPixel(x, y, L);
+        }
+    }
 }
 
 // TODO; Extra feature
