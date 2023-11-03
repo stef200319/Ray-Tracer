@@ -99,10 +99,13 @@ BVH::BVH(const Scene& scene, const Features& features)
     // Output end of bvh build for timing
     const auto end = clock::now();
     if (features.enableAccelStructure)
-        std::cout << "acceleration enabled" << std::endl;
+        if (features.extra.enableBvhSahBinning)
+            std::cout << "SAH enabled" << std::endl;
+        else
+            std::cout << "normal acceleration enabled" << std::endl;
+
     std::cout << "BVH construction time: " << std::chrono::duration<double, std::milli>(end - start).count() << " ms, type: " << scene.type << ", lvl: " << m_numLevels << ", leaves: " << m_numLeaves << ", total triangles:" << m_primitives.size() << std::endl;
-    std::cout << leafCreationHits << " triangles put in leaf nodes out of total" << std::endl;
-    std::cout << dataNodeHits << " data nodes created" << std::endl;
+    
 #endif
 }
 
@@ -574,10 +577,14 @@ void BVH::buildRecursive(const Scene& scene, const Features& features, std::span
                 std::cout << computePrimitiveCentroid(primitives[i])[longAxis] - aabb.lower[longAxis] << " ";
             std::cout << "not updated  1" << std::endl;*/
             int split = -1;
-            if (features.extra.enableBvhSahBinning)
-            split = splitPrimitivesBySAHBin(aabb, longAxis, primitives);
+
+            if (features.extra.enableBvhSahBinning) {
+                split = splitPrimitivesBySAHBin(aabb, longAxis, primitives);
+                //std::cout << "SAH " << features.extra.enableBvhSahBinning << " - " << split << " out of: " << primitives.size() << std::endl;
+            }
+                
             else split = splitPrimitivesByMedian(aabb, longAxis, primitives);
-            std::cout << "SAH " << features.extra.enableBvhSahBinning << " - " << split << " out of: " << primitives.size() << std::endl;
+
 
             //std::cout << split;
             /* for (int i = 0; i < primitives.size(); i++)
@@ -681,12 +688,12 @@ void BVH::debugDrawLevel(int level)
 
     int firstOnLevel = pow(2, level) - 1;
     int lastOnLevel = pow(2, level + 1) - 1; // -2 in reality but use -1 bc for loop
-    //if (level == m_numLevels)
-    //    lastOnLevel = firstOnLevel + m_numLeaves;
-    //for (int i = firstOnLevel; i < lastOnLevel; i++)
-        //drawAABB(m_nodes[i].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
-    //drawAABB(m_nodes[0].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
-    
+    // if (level == m_numLevels)
+    //     lastOnLevel = firstOnLevel + m_numLeaves;
+    // for (int i = firstOnLevel; i < lastOnLevel; i++)
+    // drawAABB(m_nodes[i].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+    // drawAABB(m_nodes[0].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+
     /*for (int i = 0; i < m_nodes.size(); i++) {
         if (i == 1)
             continue;
@@ -694,50 +701,34 @@ void BVH::debugDrawLevel(int level)
     }*/
     using Node = BVHInterface::Node;
     std::queue<Node> nodes;
-    std::vector<std::tuple<int, Node>> dataNodes;
     nodes.push(m_nodes[0]);
 
-    /*if (level == 0) {
+    if (level == 0) {
         drawAABB(m_nodes[0].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
         return;
-    }*/
-      
-    int nodeIndex = 0;
-    //level = 0;
-    int currLevel = 0;
-    bool dataNodeExists = false;
-    do {
-        dataNodeExists = false;
-        int size = nodes.size();
-        for (int i = 0; i < size; i++) {
-            Node curr = nodes.front();
-            nodes.pop();
-            if (!curr.isLeaf()) {
-                nodes.push(m_nodes[curr.leftChild()]);
-                nodes.push(m_nodes[curr.rightChild()]);
-                dataNodeExists = true;
-            }
-            dataNodes.emplace_back(std::make_tuple(currLevel, curr));
-        }
-
-        if (dataNodeExists)
-            currLevel++;
-        
-    } while (!nodes.empty());
-
-
-    for (auto data: dataNodes ){
-        //std::cout << std::get<0>(data) << " ";
-       if (std::get<0>(data) == level) {
-            Node curr = std::get<1>(data);
-
-            float rand = scaleSample->next_1d();
-            rand = 1 + (rand - floor(rand)) / 10;
-            AxisAlignedBox scaledAABB = { curr.aabb.lower * rand, curr.aabb.upper * rand };
-
-            drawAABB(scaledAABB, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
-        }
     }
+
+    int nodeIndex = 0;
+    do {
+        Node curr = nodes.front();
+        nodes.pop();
+
+        nodes.push(m_nodes[curr.leftChild()]);
+        nodes.push(m_nodes[curr.rightChild()]);
+    } while (!nodes.empty() && ++nodeIndex < firstOnLevel);
+
+    while (!nodes.empty()) {
+        Node curr = nodes.front();
+        nodes.pop();
+
+       /* float rand = scaleSample->next_1d();
+        rand = 1 + (rand - floor(rand)) / 10;
+        AxisAlignedBox scaledAABB = { curr.aabb.lower * rand, curr.aabb.upper * rand };*/
+
+        drawAABB(curr.aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+    }
+
+
 
 }
 
@@ -814,5 +805,54 @@ void BVH::debugDrawLeaf(int leafIndex)
                 drawTriangle(p.v0, p.v1, p.v2);
             }
         counter++;
+    }
+}
+
+void BVH::debugSAHLevel(int level)
+{
+    using Node = BVHInterface::Node;
+    std::queue<Node> nodes;
+    std::vector<std::tuple<int, Node>> dataNodes;
+    nodes.push(BVH::m_nodes[0]);
+
+    /*if (level == 0) {
+        drawAABB(m_nodes[0].aabb, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+        return;
+    }*/
+
+    int nodeIndex = 0;
+    // level = 0;
+    int currLevel = 0;
+    bool dataNodeExists = false;
+    do {
+        dataNodeExists = false;
+        int size = nodes.size();
+        for (int i = 0; i < size; i++) {
+            Node curr = nodes.front();
+            nodes.pop();
+            if (!curr.isLeaf()) {
+                nodes.push(m_nodes[curr.leftChild()]);
+                nodes.push(m_nodes[curr.rightChild()]);
+                dataNodeExists = true;
+            }
+            dataNodes.emplace_back(std::make_tuple(currLevel, curr));
+        }
+
+        if (dataNodeExists)
+            currLevel++;
+
+    } while (!nodes.empty());
+
+      Sampler* sample = new Sampler(1);
+    Sampler* scaleSample = new Sampler(1);
+    for (auto data : dataNodes) {
+        // std::cout << std::get<0>(data) << " ";
+        if (std::get<0>(data) == level) {
+            Node curr = std::get<1>(data);
+            
+             auto scaledAABB = curr.aabb;
+            drawAABB(scaledAABB, DrawMode::Wireframe, glm::vec3(sample->next_1d(), sample->next_1d(), sample->next_1d()), 1.f);
+      
+        }
     }
 }

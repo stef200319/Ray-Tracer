@@ -205,3 +205,4 @@ size_t splitPrimitivesBySAHBin(const AxisAlignedBox& aabb, uint32_t axis, std::s
 
     return triangle_i; // This is clearly not the solution
 }
+
