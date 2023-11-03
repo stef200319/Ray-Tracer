@@ -100,14 +100,14 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
         for (int x = 0; x < image.resolution().x; x++) {
             auto currPixel = pixels[image.indexAt(x, y)];
             //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
-                 if (currPixel.x + currPixel.y + currPixel.z >= 2.f)
+                 if (currPixel.x + currPixel.y + currPixel.z >= features.extra.bloomTreshold)
                 brightMask.setPixel(x, y, currPixel);
             else
                 brightMask.setPixel(x, y, glm::vec3 { 0.f, 0.f, 0.f });
         }
     }
 
-    int filterSize = 3;
+    int filterSize = features.extra.bloomFilterSize;
     auto bloom = bloomFilter(filterSize * 2 + 1);
     float bloomDivider = 0;
     for (auto filterV : bloom)
@@ -171,8 +171,8 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
             auto currPixel = pixels[image.indexAt(x, y)];
             auto maskPixel =maskPixels[image.indexAt(x, y)];
 
-            //image.setPixel(x, y,   maskPixel);
-            image.setPixel(x, y, horizontalMaskP[image.indexAt(x, y)]);
+            image.setPixel(x, y, currPixel + maskPixel);
+            //image.setPixel(x, y, horizontalMaskP[image.indexAt(x, y)]);
         }
     }
 }
