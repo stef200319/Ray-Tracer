@@ -103,7 +103,12 @@ std::vector<long double> bloomFilter(int size) {
 
     for (int i = 0; i <= size; i++) {
         long double f = (choose(size, i));
-        f /= pow(2, size);
+        int tempSize = size;
+        while (tempSize > 1000) {
+            f /= pow(2, 1000);
+            tempSize -= 1000;
+        }
+        f /= pow(2, tempSize);
         res.push_back(f);
     }
     return res;
@@ -132,13 +137,16 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
     }
 
     int filterSize = features.extra.bloomFilterSize;
-    auto bloom = bloomFilter(filterSize * 2 + 1);
+    auto bloom = bloomFilter(filterSize);
 
     Screen horizontalMask(image.resolution(), false);
     horizontalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
     auto brightMaskP = brightMask.pixels();
     //box filter and scale on mask
+#ifdef NDEBUG // Enable multi threading in Release mode
+#pragma omp parallel for schedule(guided)
     for (int y = 0; y < image.resolution().y; y++) {
+    #pragma omp parallel for schedule(guided)
         for (int x = 0; x < image.resolution().x; x++) {
 
             //calling another function seems to slow it down by a lot, even tho only references are passed, maybe optimization problems?
@@ -147,7 +155,7 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
             // mask2.setPixel(x, y, boxFilter(mask, x, y));
 
             glm::vec3 sum { 0.f, 0.f, 0.f };
-            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+            for (int i = -filterSize/2, j = 0; i < filterSize/2; i++, j++) {
                 int index = brightMask.indexAt(x + i, y);
                 if (!(index < 0 || index >= pixels.size()))
                      sum += brightMaskP[index] * ((float) bloom[j]);
@@ -158,18 +166,21 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
             horizontalMask.setPixel(x, y, sum);
         }
     }
+#endif
+
 
      Screen verticalMask(image.resolution(), false);
      verticalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
      auto horizontalMaskP = horizontalMask.pixels();
     // box filter and scale on mask
-    /* for (int x = 0; x < image.resolution().x; x++) {
-         for (int y = 0; y < image.resolution().y; y++) {*/
+    #ifdef NDEBUG
+    #pragma omp parallel for schedule(guided)
     for (int y = 0; y < image.resolution().y; y++) {
+        #pragma omp parallel for schedule(guided)
         for (int x = 0; x < image.resolution().x; x++) {
 
             glm::vec3 sum { 0.f, 0.f, 0.f };
-            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+            for (int i = -filterSize/2, j = 0; i <= filterSize/2; i++, j++) {
                 int index = horizontalMask.indexAt(x, y + i);
                 if (!(index < 0 || index >= pixels.size()))
                     //sum += horizontalMaskP[index];
@@ -181,7 +192,7 @@ void postprocessImageWithBloom(const Scene& scene, const Features& features, con
             verticalMask.setPixel(x, y, sum);
         }
     }
-
+#endif
 
     //add to original
     auto maskPixels = verticalMask.pixels();
