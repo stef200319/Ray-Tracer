@@ -105,30 +105,21 @@ glm::vec3 boxFilter(const Screen& image, int x, int y) {
     return sum;
 }
 
-long double choose(int n, int k) {
-    if (k > n)
-        return 0;
+long double choose(int n, int k)
+{
     if (n == k || k == 0)
-        return 1; // only one way to chose when n == k
+        return 1;
     if (k > n - k)
-        k = n - k; // Everything is symmetric around n-k, so it is quicker to iterate over a smaller k than a larger one.
-    long double c = 1;
-    for (int i = 1; i <= k; i++) {
-        c *= n--;
-        c /= i;
-        //c = round(c * 1e10) / 1e10;
-    }
-    return c;
-}
+        k = n - k;
 
-//long double choose(int n, int k) {
-//    double sum = 0;
-//    for (long i = 0; i < k; i++) {
-//        sum += log10(n - i);
-//        sum -= log10(i + 1);
-//    }
-//    return pow(10, sum);
-//}
+    long double res = 1;
+    for (int i = 1; i <= k; i++) {
+        res *= n - k + i;
+        res /= i;
+    }
+
+    return res;
+}
 
 std::vector<long double> bloomFilter(int size) {
     std::vector<long double> res;
