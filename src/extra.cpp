@@ -69,61 +69,110 @@ glm::vec3 boxFilter(const Screen& image, int x, int y) {
     return sum;
 }
 
+float choose(int n, int k) {
+    if (k == 0)
+        return 1;
+    return (n * choose(n - 1, k - 1)) / k;
+}
+
+std::vector<float> bloomFilter(int size) {
+    std::vector<float> res;
+    res.reserve(size);
+
+    for (int i = 1; i <= size; i++)
+        res.push_back(choose(size, i));
+
+    return res;
+}
+
 void postprocessImageWithBloom(const Scene& scene, const Features& features, const Trackball& camera, Screen& image)
 {
     if (!features.extra.enableBloomEffect) {
         return;
     }
     
-    Screen mask(image.resolution(), true);
-    mask.clear(glm::vec3 { 0.f, 0.f, 0.f });
-    glm::vec3 tresholdColor { 0.9f, 0.9f, 0.9f };
-
+    Screen brightMask(image.resolution(), true);
+    brightMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    //glm::vec3 tresholdColor { 0.7f, 0.7f, 0.7f };
     auto pixels = image.pixels();
     //initialize mask
     for (int y = 0; y < image.resolution().y; y++) {
         for (int x = 0; x < image.resolution().x; x++) {
             auto currPixel = pixels[image.indexAt(x, y)];
-            //if ( currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y  && currPixel.z >= tresholdColor.z)
-            if (currPixel.x + currPixel.y + currPixel.z >= 0.6f)
-                mask.setPixel(x, y, currPixel);
+            //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
+                 if (currPixel.x + currPixel.y + currPixel.z >= 2.f)
+                brightMask.setPixel(x, y, currPixel);
+            else
+                brightMask.setPixel(x, y, glm::vec3 { 0.f, 0.f, 0.f });
         }
     }
-    int filterSize = 10;
-    Screen maskHorizontal(image.resolution(), true);
-    maskHorizontal.clear(glm::vec3 { 0.f, 0.f, 0.f });
+
+    int filterSize = 3;
+    auto bloom = bloomFilter(filterSize * 2 + 1);
+    float bloomDivider = 0;
+    for (auto filterV : bloom)
+        bloomDivider += filterV;
+
+    Screen horizontalMask(image.resolution(), true);
+    horizontalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+    auto brightMaskP = brightMask.pixels();
     //box filter and scale on mask
-   /* for (int x = 0; x < image.resolution().x; x++) {
-        for (int y = 0; y < image.resolution().y; y++) {*/
     for (int y = 0; y < image.resolution().y; y++) {
         for (int x = 0; x < image.resolution().x; x++) {
-            //auto currPixel = pixels[mask.indexAt(x, y)];
-            //if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
-                //mask2.setPixel(x, y, boxFilter(mask, x, y));
+
+            //calling another function seems to slow it down by a lot, even tho only references are passed, maybe optimization problems?
+            /*auto currPixel = pixels[brightMask.indexAt(x, y)];
+            if (currPixel.x != 0.f && currPixel.y != 0.f && currPixel.z != 0.f)*/
+            // mask2.setPixel(x, y, boxFilter(mask, x, y));
+
             glm::vec3 sum { 0.f, 0.f, 0.f };
-            for (int i = -filterSize; i < filterSize + 1; ++i) {
-                int index = image.indexAt(x + i, y);
+            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+                int index = brightMask.indexAt(x + i, y);
                 if (!(index < 0 || index >= pixels.size()))
-                    sum += pixels[index];
+                     sum += brightMaskP[index] * bloom[j];
+                    //sum += brightMaskP[index];
+            }
+
+             //sum /= (filterSize * 2 + 1);
+            sum /= bloomDivider;
+            horizontalMask.setPixel(x, y, sum);
+        }
+    }
+
+     Screen verticalMask(image.resolution(), true);
+     verticalMask.clear(glm::vec3 { 0.f, 0.f, 0.f });
+     auto horizontalMaskP = horizontalMask.pixels();
+    // box filter and scale on mask
+    /* for (int x = 0; x < image.resolution().x; x++) {
+         for (int y = 0; y < image.resolution().y; y++) {*/
+    for (int y = 0; y < image.resolution().y; y++) {
+        for (int x = 0; x < image.resolution().x; x++) {
+
+            glm::vec3 sum { 0.f, 0.f, 0.f };
+            for (int i = -filterSize, j = 0; i < filterSize + 1; i++, j++) {
+                int index = horizontalMask.indexAt(x, y + i);
+                if (!(index < 0 || index >= pixels.size()))
+                    //sum += horizontalMaskP[index];
+                     sum += brightMaskP[index] * bloom[j];
             }
 
             // sum *= 1.f / ((filterSize * 2 + 1) * (filterSize * 2 + 1));
-            sum /= (filterSize * 2 + 1);
-            mask2.setPixel(x, y, sum);
+            //sum /= (filterSize * 2 + 1);
+            sum /= bloomDivider;
+            verticalMask.setPixel(x, y, sum);
         }
     }
 
+
     //add to original
-    auto maskP = mask2.pixels();
-    auto testMask = mask.pixels();
+    auto maskPixels = verticalMask.pixels();
      for (int y = 0; y < image.resolution().y; y++) {
         for (int x = 0; x < image.resolution().x; x++) {
             auto currPixel = pixels[image.indexAt(x, y)];
-            auto maskPixel =maskP[image.indexAt(x, y)];
-                /* if (currPixel.x >= tresholdColor.x && currPixel.y >= tresholdColor.y && currPixel.z >= tresholdColor.z)
-                */
-            image.setPixel(x, y, testMask[image.indexAt(x, y)]);
-            //image.setPixel(x, y, currPixel + maskPixel);
+            auto maskPixel =maskPixels[image.indexAt(x, y)];
+
+            //image.setPixel(x, y,   maskPixel);
+            image.setPixel(x, y, horizontalMaskP[image.indexAt(x, y)]);
         }
     }
 }
