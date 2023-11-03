@@ -6,6 +6,7 @@
 #include "render.h"
 #include "scene.h"
 #include "shading.h"
+#include "bvh.h"
 // Suppress warnings in third-party code.
 #include <framework/disable_all_warnings.h>
 DISABLE_WARNINGS_PUSH()
@@ -23,10 +24,17 @@ DISABLE_WARNINGS_POP()
 // - color;     reference return value of the color emitted by the light at the sampled position
 // This method is unit-tested, so do not change the function signature.
 void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec3& position, glm::vec3& color)
-{
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+{ 
+    glm::vec3 start = light.endpoint0;
+    glm::vec3 end = light.endpoint1;
+    
+    glm::vec3 startColor = light.color0; 
+    glm::vec3 endColor = light.color1; 
+    
+    glm::vec3 direction = end - start;
+    
+    position = start + sample * direction;
+    color = sample * endColor + (1 - sample) * startColor;
 }
 
 // TODO: Standard feature
@@ -40,9 +48,21 @@ void sampleSegmentLight(const float& sample, const SegmentLight& light, glm::vec
 // This method is unit-tested, so do not change the function signature.
 void sampleParallelogramLight(const glm::vec2& sample, const ParallelogramLight& light, glm::vec3& position, glm::vec3& color)
 {
-    // TODO: implement this function.
-    position = glm::vec3(0.0);
-    color = glm::vec3(0.0);
+    glm::vec3 v0 = light.v0;
+    glm::vec3 edge1 = light.edge01;
+    glm::vec3 edge2 = light.edge02;
+
+    float alpha = sample[0];
+    float beta = sample[1];
+
+    // New position is linear combination of the edge vectors
+    position = v0 + alpha * edge1 + beta * edge2;
+
+    // This is just the bilinear interpolation formula
+    color = light.color0 * (1 - alpha) * (1 - beta)
+            + light.color1 * alpha * (1 - beta)
+            + light.color2 * (1 - alpha) * beta
+            + light.color3 * alpha * beta;
 }
 
 // TODO: Standard feature
@@ -64,6 +84,33 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
     } else {
         // Shadows are enabled in the renderer
         // TODO: implement this function; currently, the light simply passes through
+        if (ray.t == std::numeric_limits<float>::max())
+            return false;
+
+        HitInfo temp = hitInfo;
+        glm::vec3 intersectionPoint = ray.origin + ray.direction * ray.t;
+
+        // Compute the direction from the intersection point to the light source.
+        glm::vec3 toLight = lightPosition - intersectionPoint;
+        float distanceToLight = glm::length(toLight);
+
+        // Create a shadow ray from the intersection point to the light source with bias
+        float bias = 0.0001f;
+
+        Ray shadowRay;
+        shadowRay.origin = intersectionPoint;
+        shadowRay.direction = toLight / distanceToLight;
+
+        // Offset the ray by the bias
+        shadowRay.origin += shadowRay.direction * bias;
+
+        // Check for intersections from shadowRay to lightsource
+        intersectRayWithBVH(state, state.bvh, shadowRay, temp);
+        if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
+            return false;
+        }
+
+        // If no obstructions were found, the light is visible.
         return true;
     }
 }
@@ -85,8 +132,42 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec3& lightPosition, const glm::vec3& lightColor, const Ray& ray, const HitInfo& hitInfo)
 {
-    // TODO: implement this function; currently, the light simply passes through
-    return lightColor;
+    glm::vec3 result = lightColor;
+    glm::vec3 intersectionPoint = ray.origin + ray.t * ray.direction;
+
+    glm::vec3 toLight = lightPosition - intersectionPoint;
+
+    HitInfo temp = hitInfo;
+
+    float bias = 0.0001f;
+    Ray shadowRay;
+    shadowRay.origin = intersectionPoint;
+    shadowRay.direction = glm::normalize(toLight);
+    shadowRay.origin += bias * shadowRay.direction;
+
+    float distanceToLight = glm::length(toLight);
+
+    // Iterate over the scene objects and check for intersections with the shadow ray.
+    for (const auto& mesh : state.scene.meshes) {
+        const std::vector<Vertex>& vertices = mesh.vertices;
+        const std::vector<glm::uvec3>& triangles = mesh.triangles;
+
+        for (const glm::uvec3& triangle : triangles) {
+            const glm::vec3& vertex1 = vertices[triangle.x].position;
+            const glm::vec3& vertex2 = vertices[triangle.y].position;
+            const glm::vec3& vertex3 = vertices[triangle.z].position;
+
+            // Perform ray-triangle intersection test.
+            if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
+                // If an intersection is found and it is closer than the light source, attenuate the light color.
+                float alpha = mesh.material.transparency;
+                result *= (1 - alpha);
+                break; // Stop checking other triangles for transparency.
+            }
+        }
+    }
+
+    return result;
 }
 
 // TODO: Standard feature
@@ -104,11 +185,14 @@ glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec
 // This method is unit-tested, so do not change the function signature.
 glm::vec3 computeContributionPointLight(RenderState& state, const PointLight& light, const Ray& ray, const HitInfo& hitInfo)
 {
+    glm::vec3 color = visibilityOfLightSample(state, light.position, light.color, ray, hitInfo);
+
+
     // TODO: modify this function to incorporate visibility corerctly
     glm::vec3 p = ray.origin + ray.t * ray.direction;
     glm::vec3 l = glm::normalize(light.position - p);
     glm::vec3 v = -ray.direction;
-    return computeShading(state, v, l, light.color, hitInfo);
+    return computeShading(state, v, l, color, hitInfo);
 }
 
 // TODO: Standard feature
@@ -134,7 +218,31 @@ glm::vec3 computeContributionSegmentLight(RenderState& state, const SegmentLight
     // - sample the segment light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 accumulatedLight(0.0f);
+    glm::vec3 sampledPosition(0.0f);
+    glm::vec3 sampledColor(0.0f);
+    glm::vec3 color(0.0f);
+    float N = numSamples;
+
+    for (int i = 0; i < numSamples; i++) {
+
+        // Sample the segment light 
+        sampleSegmentLight(state.sampler.next_1d(), light, sampledPosition, sampledColor);
+
+        // Compute the color
+        color = visibilityOfLightSample(state, sampledPosition, sampledColor / N, ray, hitInfo);
+
+        if (color == glm::vec3(0.0f))
+            continue;
+
+        glm::vec3 p = ray.origin + ray.t * ray.direction;
+        glm::vec3 l = glm::normalize(sampledPosition - p);
+        glm::vec3 v = -ray.direction;
+        accumulatedLight += computeShading(state, v, l, color, hitInfo);
+    }
+
+
+    return accumulatedLight;
 }
 
 // TODO: Standard feature
@@ -161,7 +269,27 @@ glm::vec3 computeContributionParallelogramLight(RenderState& state, const Parall
     // - sample the parallellogram light
     // - test the sample's visibility
     // - then evaluate the phong model
-    return glm::vec3(0);
+    glm::vec3 accumulatedLight(0.0f);
+    glm::vec3 sampledPosition(0.0f);
+    glm::vec3 sampledColor(0.0f);
+    glm::vec3 color(0.0f);
+    float N = numSamples;
+
+    for (int i = 0; i < numSamples; i++) {
+
+        // Sample the parallelogram light
+        sampleParallelogramLight(state.sampler.next_2d(), light, sampledPosition, sampledColor);
+
+        // Compute the color
+        color = visibilityOfLightSample(state, sampledPosition, sampledColor / N, ray, hitInfo);
+
+        glm::vec3 p = ray.origin + ray.t * ray.direction;
+        glm::vec3 l = glm::normalize(sampledPosition - p);
+        glm::vec3 v = -ray.direction;
+        accumulatedLight += computeShading(state, v, l, color, hitInfo);
+    }
+
+    return accumulatedLight;
 }
 
 // This function is provided as-is. You do not have to implement it.
