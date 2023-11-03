@@ -263,6 +263,13 @@ int comparePrimitivesZ(BVHInterface::Primitive p1, BVHInterface::Primitive p2)
 // - primitives; the modifiable range of triangles that requires sorting/splitting along an axis
 // - return;     the split position of the modified range of triangles
 // This method is unit-tested, so do not change the function signature.
+// sort the triangles based on their centroid, on the axis that is specified
+// 
+// 
+//split the list so that the size is almost half ( case 1: even - split exactly in half, case 2: odd - 2 possibilities)
+//i think at least as big as the other still refers to length, if so => case 2: first part takes the extra element
+//use the AABB to make a simpler solution
+
 size_t splitPrimitivesByMedian(const AxisAlignedBox& aabb, uint32_t axis, std::span<BVHInterface::Primitive> primitives)
 {
     using Primitive = BVHInterface::Primitive;

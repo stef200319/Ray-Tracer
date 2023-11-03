@@ -187,6 +187,12 @@ int main(int argc, char** argv)
                 if (config.features.extra.enableBloomEffect) {
                     ImGui::Indent();
                     // Add bloom settings here, if necessary
+                    uint32_t minSize = 1u, maxSize = 10u;
+                    ImGui::SliderScalar("Bloom filter size", ImGuiDataType_U32, &config.features.extra.bloomFilterSize, &minSize, &maxSize);
+
+            
+                    ImGui::SliderFloat("Bloom treshold", &config.features.extra.bloomTreshold, 0.f, 3.f);
+
                     ImGui::Unindent();
                 }
                 ImGui::Checkbox("Depth of field", &config.features.extra.enableDepthOfField);
