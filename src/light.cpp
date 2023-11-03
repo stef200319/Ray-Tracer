@@ -106,7 +106,7 @@ bool visibilityOfLightSampleBinary(RenderState& state, const glm::vec3& lightPos
 
         // Check for intersections from shadowRay to lightsource
         intersectRayWithBVH(state, state.bvh, shadowRay, temp);
-        if (glm::length(shadowRay.origin + shadowRay.direction * shadowRay.t) < distanceToLight) {
+        if (shadowRay.t < distanceToLight) {
             return false;
         }
 
@@ -159,10 +159,11 @@ glm::vec3 visibilityOfLightSampleTransparency(RenderState& state, const glm::vec
 
             // Perform ray-triangle intersection test.
             if (intersectRayWithTriangle(vertex1, vertex2, vertex3, shadowRay, temp)) {
-                // If an intersection is found and it is closer than the light source, attenuate the light color.
-                float alpha = mesh.material.transparency;
-                result *= (1 - alpha);
-                break; // Stop checking other triangles for transparency.
+                if (shadowRay.t < distanceToLight) {
+                    float alpha = mesh.material.transparency;
+                    result *= (1 - alpha);
+                    break; // Stop checking other triangles for transparency.
+                }
             }
         }
     }
