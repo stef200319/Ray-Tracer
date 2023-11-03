@@ -42,6 +42,7 @@ void renderImageWithMotionBlur(const Scene& scene, const BVHInterface& bvh, cons
 
 //this is so weird, it becomes 10000 times faster by not using this boxFilter method
 // i suppose cache misses, idk
+// it was a box filter because I was using it in early testing, in the main code a binomial gradient is used
 glm::vec3 boxFilter(const Screen& image, int x, int y) {
     glm::vec3 edgeColor { 0.f, 0.f, 0.f };
     int filterSize = 1;
